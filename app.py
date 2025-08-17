@@ -136,9 +136,21 @@ def main():
         if st.button("🔍 商品情報を取得", help="重量・サイズなどの商品情報のみを取得します"):
             if ebay_input:
                 with st.spinner("eBayから商品情報を取得中..."):
-                    item_data = ebay_api.get_item_details(ebay_input)
+                    try:
+                        item_data = ebay_api.get_item_details(ebay_input)
+                        
+                        # Show debug info
+                        with st.expander("🔧 デバッグ情報"):
+                            st.write("**入力値:**", ebay_input)
+                            st.write("**取得データ:**", item_data)
+                            if hasattr(ebay_api, 'last_debug_info'):
+                                st.write("**デバッグ詳細:**", ebay_api.last_debug_info)
+                                
+                    except Exception as e:
+                        st.error(f"エラーが発生しました: {e}")
+                        item_data = None
                 
-                if item_data:
+                if item_data and isinstance(item_data, dict):
                     # Update session state with auto-detected dimensions
                     if item_data.get('shipping_weight'):
                         st.session_state.auto_weight = item_data['shipping_weight']

@@ -16,6 +16,7 @@ class eBayAPI:
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         })
+        self.last_debug_info = {}
     
     def extract_item_id(self, url_or_id: str) -> Optional[str]:
         """Extract eBay item ID from URL or return the ID if already provided"""
@@ -84,8 +85,12 @@ class eBayAPI:
             
             response = self.session.get(url, headers=headers, timeout=10)
             
-            print(f"Response status: {response.status_code}")
-            print(f"Response URL: {response.url}")
+            # Store debug info for UI display
+            self.last_debug_info = {
+                'response_status': response.status_code,
+                'response_url': str(response.url),
+                'extracted_data': {}
+            }
             
             if response.status_code != 200:
                 print(f"HTTP Error: {response.status_code}")
@@ -98,9 +103,12 @@ class eBayAPI:
             title = self._extract_title(soup)
             price = self._extract_price(soup)
             
-            print(f"Extracted title: {title}")
-            print(f"Extracted price: {price}")
-            print(f"Extracted dimensions: {dimensions}")
+            # Store extracted data for debugging
+            self.last_debug_info['extracted_data'] = {
+                'title': title,
+                'price': price,
+                'dimensions': dimensions
+            }
             
             # Try multiple title selectors for better compatibility
             if not title:
@@ -117,7 +125,7 @@ class eBayAPI:
                     title_element = soup.select_one(selector)
                     if title_element and title_element.get_text().strip():
                         title = title_element.get_text().strip()
-                        print(f"Found title with selector {selector}: {title}")
+                        self.last_debug_info['extracted_data']['title_selector'] = selector
                         break
             
             # Try multiple price selectors
@@ -139,7 +147,7 @@ class eBayAPI:
                         if price_match:
                             try:
                                 price = float(price_match.group())
-                                print(f"Found price with selector {selector}: {price}")
+                                self.last_debug_info['extracted_data']['price_selector'] = selector
                                 break
                             except ValueError:
                                 continue
@@ -161,9 +169,10 @@ class eBayAPI:
             return item_data
             
         except Exception as e:
-            print(f"Scraping error: {e}")
-            import traceback
-            traceback.print_exc()
+            self.last_debug_info = {
+                'error': str(e),
+                'error_type': type(e).__name__
+            }
             return None
     
     def _extract_title(self, soup: BeautifulSoup) -> str:
