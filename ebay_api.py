@@ -157,7 +157,20 @@ class eBayAPI:
             
             # Store extracted data for debugging
             page_text = soup.get_text().lower()
-            price_mentions = [line.strip() for line in soup.get_text().split('\n') if '$' in line and line.strip()][:5]
+            price_mentions = [line.strip() for line in soup.get_text().split('\n') if '$' in line and line.strip()][:10]
+            
+            # Extract all prices found on the page for debugging
+            all_found_prices = []
+            for line in soup.get_text().split('\n'):
+                if '$' in line:
+                    dollar_matches = re.findall(r'\$\s*([\d,]+\.?\d*)', line.replace(',', ''))
+                    for match in dollar_matches:
+                        try:
+                            price_val = float(match)
+                            if 0.01 <= price_val <= 99999:
+                                all_found_prices.append(price_val)
+                        except ValueError:
+                            continue
             
             self.last_debug_info['extracted_data'] = {
                 'title': title,
@@ -168,52 +181,93 @@ class eBayAPI:
                 'contains_weight_data': any(word in page_text for word in ['weight', '重量', 'kg', 'gram', 'lb', 'oz']),
                 'contains_dimension_data': any(word in page_text for word in ['dimension', 'size', 'length', 'width', 'height']),
                 'price_mentions_sample': price_mentions,
+                'all_prices_found': sorted(set(all_found_prices), reverse=True)[:10],  # Top 10 unique prices
+                'highest_price_found': max(all_found_prices) if all_found_prices else 0,
                 'title_selectors_found': len(soup.select('h1')),
-                'price_selectors_found': len(soup.select('[data-testid="price"]'))
+                'price_selectors_found': len(soup.select('[data-testid="price"]')),
+                'url_used': url
             }
             
-            # Try multiple title selectors for better compatibility
+            # More aggressive price extraction methods
+            if not price or price < 10:  # If price is suspiciously low, try harder
+                # Method 1: Look for the largest price on the page
+                all_prices = []
+                all_text_lines = soup.get_text().split('\n')
+                
+                for line in all_text_lines:
+                    if '$' in line:
+                        # Extract all dollar amounts from the line
+                        dollar_matches = re.findall(r'\$\s*([\d,]+\.?\d*)', line.replace(',', ''))
+                        for match in dollar_matches:
+                            try:
+                                price_val = float(match)
+                                if 1 <= price_val <= 99999:  # Reasonable price range
+                                    all_prices.append(price_val)
+                            except ValueError:
+                                continue
+                
+                # Take the highest price (likely the main selling price)
+                if all_prices:
+                    potential_price = max(all_prices)
+                    if potential_price > price:  # Use if higher than current
+                        price = potential_price
+                        self.last_debug_info['extracted_data']['price_method'] = 'max_price_extraction'
+                
+                # Method 2: Look in specific price containers
+                price_containers = [
+                    '.ux-price-display',
+                    '.price-current',
+                    '.current-price',
+                    '.selling-price',
+                    '.item-price',
+                    '[data-testid="price"]'
+                ]
+                
+                for container in price_containers:
+                    elements = soup.select(container)
+                    for element in elements:
+                        text = element.get_text()
+                        prices_in_element = re.findall(r'\$\s*([\d,]+\.?\d*)', text.replace(',', ''))
+                        for price_str in prices_in_element:
+                            try:
+                                potential_price = float(price_str)
+                                if potential_price > price and 1 <= potential_price <= 99999:
+                                    price = potential_price
+                                    self.last_debug_info['extracted_data']['price_method'] = f'container_{container}'
+                            except ValueError:
+                                continue
+                
+                # Method 3: Look in meta tags
+                meta_price = soup.find('meta', property='product:price:amount')
+                if meta_price and meta_price.get('content'):
+                    try:
+                        meta_price_val = float(meta_price['content'])
+                        if meta_price_val > price:
+                            price = meta_price_val
+                            self.last_debug_info['extracted_data']['price_method'] = 'meta_tag'
+                    except ValueError:
+                        pass
+            
+            # Improved title extraction if needed
             if not title:
                 title_selectors = [
+                    'h1[data-testid="x-title-label-lbl"]',
                     'h1',
-                    '[data-testid="x-title-label-lbl"]',
                     '.x-title-label-lbl',
                     '.it-ttl',
-                    '.ebay-title',
-                    '#ia-title'
+                    '[data-testid="item-title"]',
+                    '.ebay-title'
                 ]
                 
                 for selector in title_selectors:
                     title_element = soup.select_one(selector)
                     if title_element and title_element.get_text().strip():
                         title = title_element.get_text().strip()
+                        # Clean up title
+                        title = re.sub(r'^Details about\s*', '', title, flags=re.IGNORECASE)
                         self.last_debug_info['extracted_data']['title_selector'] = selector
                         break
-            
-            # Try multiple price selectors
-            if not price:
-                price_selectors = [
-                    '[data-testid="price"] .ux-textspans',
-                    '.price .notranslate',
-                    '#prcIsum .notranslate',
-                    '.ebay-price',
-                    '.u-flL.condText + .u-flL .notranslate'
-                ]
-                
-                for selector in price_selectors:
-                    price_element = soup.select_one(selector)
-                    if price_element:
-                        price_text = price_element.get_text()
-                        # Extract numeric value
-                        price_match = re.search(r'[\d,]+\.?\d*', price_text.replace(',', ''))
-                        if price_match:
-                            try:
-                                price = float(price_match.group())
-                                self.last_debug_info['extracted_data']['price_selector'] = selector
-                                break
-                            except ValueError:
-                                continue
-            
+
             item_data = {
                 'item_id': item_id,
                 'title': title or "商品タイトル取得失敗",
