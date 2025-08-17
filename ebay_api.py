@@ -73,14 +73,20 @@ class eBayAPI:
         try:
             url = f"https://www.ebay.com/itm/{item_id}"
             
-            # Add more headers to avoid blocking
+            # Enhanced headers to mimic real browser
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                'Accept-Language': 'en-US,en;q=0.9,ja;q=0.8',
                 'Accept-Encoding': 'gzip, deflate, br',
                 'Connection': 'keep-alive',
                 'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-User': '?1',
+                'Cache-Control': 'max-age=0',
+                'DNT': '1'
             }
             
             response = self.session.get(url, headers=headers, timeout=10)
@@ -107,7 +113,11 @@ class eBayAPI:
             self.last_debug_info['extracted_data'] = {
                 'title': title,
                 'price': price,
-                'dimensions': dimensions
+                'dimensions': dimensions,
+                'page_length': len(response.content),
+                'contains_price_data': 'price' in soup.get_text().lower(),
+                'contains_weight_data': any(word in soup.get_text().lower() for word in ['weight', '重量', 'kg', 'gram']),
+                'contains_dimension_data': any(word in soup.get_text().lower() for word in ['dimension', 'size', 'length', 'width', 'height'])
             }
             
             # Try multiple title selectors for better compatibility
@@ -177,17 +187,26 @@ class eBayAPI:
     
     def _extract_title(self, soup: BeautifulSoup) -> str:
         """Extract item title from HTML"""
+        # More comprehensive title selectors for modern eBay
         selectors = [
-            'h1[id="x-title-label-lbl"]',
+            'h1[data-testid="x-title-label-lbl"]',
+            'h1[id="x-title-label-lbl"]', 
             'h1.x-title-label-lbl',
             'h1.it-ttl',
-            '.notranslate'
+            'h1.notranslate',
+            'h1 span.notranslate',
+            '[data-testid="item-title"]',
+            '.x-title-label-lbl span',
+            'h1'
         ]
         
         for selector in selectors:
             element = soup.select_one(selector)
-            if element:
-                return element.get_text().strip()
+            if element and element.get_text().strip():
+                title = element.get_text().strip()
+                # Remove unwanted text like "Details about"
+                title = re.sub(r'^Details about\s*', '', title, flags=re.IGNORECASE)
+                return title
         
         return ""
     
@@ -202,21 +221,37 @@ class eBayAPI:
             'dimension_unit': 'cm'
         }
         
-        # Look for shipping and payment section
-        shipping_section = soup.find('div', {'id': 'shipping-payment'}) or soup.find('div', class_='u-flL')
+        # Look for dimensions and weight in multiple sections
+        sections_to_check = [
+            soup.find('div', {'id': 'shipping-payment'}),
+            soup.find('div', class_='u-flL'),
+            soup.find('div', {'id': 'itemSpecifics'}),
+            soup.find('section', {'data-testid': 'item-details'}),
+            soup.find('div', class_='itemAttr')
+        ]
         
-        # Try to find dimensions in various locations
+        # More comprehensive selectors for item specifications
         selectors_to_try = [
             '.itemAttr',
-            '.attrLabels',
+            '.attrLabels', 
             '.u-flL.condText',
             '.specs',
-            '.itemSpecifics'
+            '.itemSpecifics',
+            '[data-testid="item-specifics"]',
+            '.item-specifics',
+            '.ebay-details',
+            '.vim',
+            'table',
+            '.x-item-condition-text',
+            '.section-subtitle'
         ]
         
         text_content = ""
-        if shipping_section:
-            text_content += shipping_section.get_text()
+        
+        # Extract text from specific sections
+        for section in sections_to_check:
+            if section:
+                text_content += " " + section.get_text()
         
         # Get all text content from potential locations
         for selector in selectors_to_try:
@@ -224,17 +259,26 @@ class eBayAPI:
             for element in elements:
                 text_content += " " + element.get_text()
         
+        # Also check the entire page text for specifications
+        page_text = soup.get_text()
+        text_content += " " + page_text
+        
         # Extract weight information
         import re
         
-        # Weight patterns
+        # Enhanced weight patterns
         weight_patterns = [
-            r'(\d+(?:\.\d+)?)\s*(?:kg|キロ|kilogram)',
-            r'(\d+(?:\.\d+)?)\s*(?:g|グラム|gram)',
-            r'(\d+(?:\.\d+)?)\s*(?:lb|pound|ポンド)',
-            r'(\d+(?:\.\d+)?)\s*(?:oz|ounce|オンス)',
-            r'Weight:?\s*(\d+(?:\.\d+)?)\s*(?:kg|g|lb|oz)',
-            r'重量:?\s*(\d+(?:\.\d+)?)\s*(?:kg|g|キロ|グラム)'
+            r'Weight[:\s]*(\d+(?:\.\d+)?)\s*(?:kg|キロ|kilogram)',
+            r'Weight[:\s]*(\d+(?:\.\d+)?)\s*(?:g|グラム|gram|grams)',
+            r'Weight[:\s]*(\d+(?:\.\d+)?)\s*(?:lb|lbs|pound|pounds|ポンド)',
+            r'Weight[:\s]*(\d+(?:\.\d+)?)\s*(?:oz|ounce|ounces|オンス)',
+            r'重量[:\s]*(\d+(?:\.\d+)?)\s*(?:kg|g|キロ|グラム)',
+            r'Item Weight[:\s]*(\d+(?:\.\d+)?)\s*(?:kg|g|lb|oz)',
+            r'Shipping Weight[:\s]*(\d+(?:\.\d+)?)\s*(?:kg|g|lb|oz)',
+            r'(\d+(?:\.\d+)?)\s*(?:kg|キロ|kilogram)s?',
+            r'(\d+(?:\.\d+)?)\s*(?:g|グラム|gram)s?',
+            r'(\d+(?:\.\d+)?)\s*(?:lb|lbs|pound|pounds|ポンド)',
+            r'(\d+(?:\.\d+)?)\s*(?:oz|ounce|ounces|オンス)'
         ]
         
         for pattern in weight_patterns:
@@ -253,14 +297,18 @@ class eBayAPI:
                     dimensions_data['weight'] = int(weight_value)  # Assume grams
                 break
         
-        # Dimension patterns
+        # Enhanced dimension patterns
         dimension_patterns = [
-            r'(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)\s*(?:cm|センチ|inch|インチ)',
-            r'Length:?\s*(\d+(?:\.\d+)?)\s*(?:cm|inch)',
-            r'Width:?\s*(\d+(?:\.\d+)?)\s*(?:cm|inch)',
-            r'Height:?\s*(\d+(?:\.\d+)?)\s*(?:cm|inch)',
-            r'Dimensions:?\s*(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)',
-            r'サイズ:?\s*(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)'
+            r'Dimensions?[:\s]*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(?:cm|センチ|inch|インチ|in)',
+            r'Size[:\s]*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(?:cm|センチ|inch|インチ|in)',
+            r'(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(?:cm|センチ|inch|インチ|in)',
+            r'Length[:\s]*(\d+(?:\.\d+)?)\s*(?:cm|センチ|inch|インチ|in)',
+            r'Width[:\s]*(\d+(?:\.\d+)?)\s*(?:cm|センチ|inch|インチ|in)', 
+            r'Height[:\s]*(\d+(?:\.\d+)?)\s*(?:cm|センチ|inch|インチ|in)',
+            r'Depth[:\s]*(\d+(?:\.\d+)?)\s*(?:cm|センチ|inch|インチ|in)',
+            r'サイズ[:\s]*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)',
+            r'寸法[:\s]*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)',
+            r'Package Dimensions[:\s]*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)'
         ]
         
         for pattern in dimension_patterns:
@@ -296,24 +344,43 @@ class eBayAPI:
     
     def _extract_price(self, soup: BeautifulSoup) -> float:
         """Extract item price from HTML"""
+        # More comprehensive price selectors
         selectors = [
+            '[data-testid="price"] .ux-textspans',
+            '[data-testid="price"] span',
             '.notranslate[data-testid="price"] .ux-textspans',
-            '.price .notranslate',
+            '.price .notranslate', 
             '#prcIsum .notranslate',
-            '[data-testid="price"] span'
+            '.u-flL.condText + .u-flL .notranslate',
+            '.ebay-price .notranslate',
+            '.display-price',
+            '[data-testid="price"] .notranslate',
+            'span[data-testid="price"] span',
+            '.ux-textspans--BOLD'
         ]
         
         for selector in selectors:
-            element = soup.select_one(selector)
-            if element:
-                price_text = element.get_text()
-                # Extract numeric value
-                price_match = re.search(r'[\d,]+\.?\d*', price_text.replace(',', ''))
-                if price_match:
-                    try:
-                        return float(price_match.group())
-                    except ValueError:
-                        continue
+            elements = soup.select(selector)
+            for element in elements:
+                if element:
+                    price_text = element.get_text()
+                    # Look for price patterns like $123.45, US $123.45, etc.
+                    price_patterns = [
+                        r'US\s*\$\s*([\d,]+\.?\d*)',
+                        r'\$\s*([\d,]+\.?\d*)',
+                        r'([\d,]+\.?\d*)\s*USD',
+                        r'([\d,]+\.?\d*)'
+                    ]
+                    
+                    for pattern in price_patterns:
+                        price_match = re.search(pattern, price_text.replace(',', ''))
+                        if price_match:
+                            try:
+                                price = float(price_match.group(1))
+                                if price > 0:  # Ensure it's a valid price
+                                    return price
+                            except (ValueError, IndexError):
+                                continue
         
         return 0.0
     
