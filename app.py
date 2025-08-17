@@ -112,6 +112,8 @@ def main():
     4. 「利益を計算する」ボタンをクリック
     
     ⚠️ **仕入価格**は、eBayでの販売価格ではなく、あなたが商品を購入した価格です。
+    
+    💡 **テスト用**: データ取得に問題がある場合は、商品IDに「test」と入力すると、サンプルデータで動作を確認できます。
     """)
     
     # Initialize session state for results
@@ -129,6 +131,58 @@ def main():
         st.header("📝 商品情報")
         ebay_input = st.text_input("eBay商品URLまたは商品ID", 
                                   placeholder="eBayのURLまたは数字の商品IDを入力")
+        
+        # Add button to fetch product info without calculating profit
+        if st.button("🔍 商品情報を取得", help="重量・サイズなどの商品情報のみを取得します"):
+            if ebay_input:
+                with st.spinner("eBayから商品情報を取得中..."):
+                    item_data = ebay_api.get_item_details(ebay_input)
+                
+                if item_data:
+                    # Update session state with auto-detected dimensions
+                    if item_data.get('shipping_weight'):
+                        st.session_state.auto_weight = item_data['shipping_weight']
+                    
+                    if item_data.get('dimensions'):
+                        dimensions = item_data['dimensions']
+                        st.session_state.auto_dimensions = {
+                            'length': dimensions.get('length'),
+                            'width': dimensions.get('width'),
+                            'height': dimensions.get('height')
+                        }
+                    
+                    # Display fetched information
+                    st.success(f"✅ 商品情報取得成功!")
+                    st.write(f"**商品名**: {item_data.get('title', 'N/A')}")
+                    st.write(f"**販売価格**: ${item_data.get('price', 0):.2f}")
+                    
+                    # Show detected dimensions
+                    auto_info = []
+                    if item_data.get('shipping_weight'):
+                        auto_info.append(f"重量: {item_data['shipping_weight']}g")
+                    
+                    if item_data.get('dimensions'):
+                        dimensions = item_data['dimensions']
+                        if dimensions.get('length') and dimensions.get('width') and dimensions.get('height'):
+                            auto_info.append(f"サイズ: {dimensions['length']:.1f} x {dimensions['width']:.1f} x {dimensions['height']:.1f} cm")
+                        elif any([dimensions.get('length'), dimensions.get('width'), dimensions.get('height')]):
+                            size_parts = []
+                            if dimensions.get('length'): size_parts.append(f"長さ{dimensions['length']:.1f}cm")
+                            if dimensions.get('width'): size_parts.append(f"幅{dimensions['width']:.1f}cm") 
+                            if dimensions.get('height'): size_parts.append(f"高さ{dimensions['height']:.1f}cm")
+                            auto_info.append("サイズ: " + ", ".join(size_parts))
+                    
+                    if auto_info:
+                        st.info(f"🎯 自動検出: {' / '.join(auto_info)}")
+                    else:
+                        st.warning("⚠️ 重量・サイズ情報が見つかりませんでした。下記で手動入力してください。")
+                    
+                    st.rerun()  # Refresh to update the input fields
+                else:
+                    st.error("🚫 商品情報の取得に失敗しました。URLまたは商品IDを確認してください。")
+            else:
+                st.warning("⚠️ 商品URLまたは商品IDを入力してください。")
+        
         supplier_price = st.number_input("仕入価格（日本円）", 
                                        min_value=0.0, step=100.0, 
                                        help="あなたが商品を仕入れた（購入した）価格を日本円で入力してください。eBayでの販売価格ではありません。")
@@ -186,10 +240,23 @@ def main():
             return
         
         with st.spinner("eBayから商品データを取得中..."):
+            # Show debug info in expander
+            debug_container = st.empty()
+            
             item_data = ebay_api.get_item_details(ebay_input)
         
         if not item_data:
             st.error("eBayの商品データを取得できませんでした。URLまたは商品IDを確認してもう一度お試しください。")
+            
+            # Show debug information
+            with st.expander("🔧 デバッグ情報（開発者向け）"):
+                st.write("**抽出されたItem ID:**", ebay_api.extract_item_id(ebay_input))
+                st.write("**入力URL/ID:**", ebay_input)
+                st.write("**考えられる原因:**")
+                st.write("- eBayがアクセスをブロックしている")
+                st.write("- 商品が存在しないまたは削除されている") 
+                st.write("- URLの形式が対応していない")
+                st.write("- 一時的なネットワークエラー")
             return
         
         # Update session state with auto-detected dimensions

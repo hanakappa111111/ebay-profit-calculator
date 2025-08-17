@@ -72,20 +72,82 @@ class eBayAPI:
         try:
             url = f"https://www.ebay.com/itm/{item_id}"
             
-            response = self.session.get(url)
+            # Add more headers to avoid blocking
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+            }
+            
+            response = self.session.get(url, headers=headers, timeout=10)
+            
+            print(f"Response status: {response.status_code}")
+            print(f"Response URL: {response.url}")
             
             if response.status_code != 200:
+                print(f"HTTP Error: {response.status_code}")
                 return None
             
             soup = BeautifulSoup(response.content, 'html.parser')
             
             # Extract item details
             dimensions = self._extract_dimensions_and_weight(soup)
+            title = self._extract_title(soup)
+            price = self._extract_price(soup)
+            
+            print(f"Extracted title: {title}")
+            print(f"Extracted price: {price}")
+            print(f"Extracted dimensions: {dimensions}")
+            
+            # Try multiple title selectors for better compatibility
+            if not title:
+                title_selectors = [
+                    'h1',
+                    '[data-testid="x-title-label-lbl"]',
+                    '.x-title-label-lbl',
+                    '.it-ttl',
+                    '.ebay-title',
+                    '#ia-title'
+                ]
+                
+                for selector in title_selectors:
+                    title_element = soup.select_one(selector)
+                    if title_element and title_element.get_text().strip():
+                        title = title_element.get_text().strip()
+                        print(f"Found title with selector {selector}: {title}")
+                        break
+            
+            # Try multiple price selectors
+            if not price:
+                price_selectors = [
+                    '[data-testid="price"] .ux-textspans',
+                    '.price .notranslate',
+                    '#prcIsum .notranslate',
+                    '.ebay-price',
+                    '.u-flL.condText + .u-flL .notranslate'
+                ]
+                
+                for selector in price_selectors:
+                    price_element = soup.select_one(selector)
+                    if price_element:
+                        price_text = price_element.get_text()
+                        # Extract numeric value
+                        price_match = re.search(r'[\d,]+\.?\d*', price_text.replace(',', ''))
+                        if price_match:
+                            try:
+                                price = float(price_match.group())
+                                print(f"Found price with selector {selector}: {price}")
+                                break
+                            except ValueError:
+                                continue
             
             item_data = {
                 'item_id': item_id,
-                'title': self._extract_title(soup),
-                'price': self._extract_price(soup),
+                'title': title or "商品タイトル取得失敗",
+                'price': price or 0.0,
                 'category_id': self._extract_category(soup),
                 'currency': 'USD',
                 'condition': self._extract_condition(soup),
@@ -95,10 +157,13 @@ class eBayAPI:
                 'dimensions': dimensions
             }
             
-            return item_data if item_data['title'] and item_data['price'] else None
+            # Return data even if title or price extraction failed (for debugging)
+            return item_data
             
         except Exception as e:
             print(f"Scraping error: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def _extract_title(self, soup: BeautifulSoup) -> str:
@@ -320,6 +385,10 @@ class eBayAPI:
     
     def get_item_details(self, url_or_id: str) -> Optional[Dict]:
         """Main method to fetch item details - tries API first, then scraping"""
+        # Check for test mode
+        if url_or_id.lower().strip() == 'test':
+            return self._get_test_data()
+        
         item_id = self.extract_item_id(url_or_id)
         if not item_id:
             return None
@@ -336,6 +405,29 @@ class eBayAPI:
             item_data['fee_rate'] = get_fee_rate(item_data.get('category_id'))
         
         return item_data
+    
+    def _get_test_data(self) -> Dict:
+        """Return test data for debugging purposes"""
+        return {
+            'item_id': 'test',
+            'title': 'テスト商品 - iPhone 15 Pro Max 256GB',
+            'price': 999.99,
+            'category_id': 'electronics',
+            'currency': 'USD',
+            'condition': 'New',
+            'shipping_weight': 750,  # 750g
+            'image_url': '',
+            'seller_info': {'username': 'test_seller'},
+            'dimensions': {
+                'length': 16.0,
+                'width': 7.8,
+                'height': 0.8,
+                'weight': 750,
+                'weight_unit': 'g',
+                'dimension_unit': 'cm'
+            },
+            'fee_rate': 0.1275
+        }
 
 # Create a global instance
 ebay_api = eBayAPI() 
