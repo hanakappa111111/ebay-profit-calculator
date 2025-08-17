@@ -70,51 +70,58 @@ def calculate_profit(selling_price: float, fee_rate: float, shipping_cost: int, 
     return profit, margin
 
 def main():
-    st.title("💰 eBay Profit Calculator")
-    st.subheader("日本からeBayへの転売利益計算ツール")
+    st.title("💰 eBay転売利益計算ツール")
+    st.subheader("日本からeBayへの転売利益を簡単計算！")
     
     # Initialize session state for results
     if 'results_df' not in st.session_state:
         st.session_state.results_df = pd.DataFrame(columns=[
-            'Item ID', 'Title', 'Selling Price (USD)', 'Supplier Cost (JPY)', 
-            'Shipping Method', 'Shipping Cost (JPY)', 'eBay Fees (USD)', 
-            'Profit (USD)', 'Margin (%)', 'Calculated At'
+            '商品ID', '商品タイトル', 'eBay販売価格 (USD)', '仕入価格 (JPY)', 
+            '配送方法', '送料 (JPY)', 'eBay手数料 (USD)', 
+            '利益 (USD)', '利益率 (%)', '計算日時'
         ])
     
     # Main input section
     col1, col2 = st.columns(2)
     
     with col1:
-        st.header("📝 Item Details")
-        ebay_input = st.text_input("eBay URL or Item ID", 
-                                  placeholder="Enter eBay URL or Item ID")
-        supplier_price = st.number_input("Supplier Price (JPY)", 
+        st.header("📝 商品情報")
+        ebay_input = st.text_input("eBay商品URLまたは商品ID", 
+                                  placeholder="eBayのURLまたは数字の商品IDを入力")
+        supplier_price = st.number_input("仕入価格（日本円）", 
                                        min_value=0.0, step=100.0, 
-                                       help="仕入れ価格を入力してください")
+                                       help="商品の仕入れにかかった価格を日本円で入力してください")
     
     with col2:
-        st.header("🚚 Shipping Settings")
-        weight = st.number_input("Weight (grams)", 
+        st.header("🚚 配送設定")
+        weight = st.number_input("商品重量（グラム）", 
                                min_value=1, max_value=10000, value=500,
-                               help="商品の重量をグラムで入力")
-        shipping_method = st.selectbox("Shipping Method", 
-                                     ["EMS", "Air", "SAL", "Surface"])
+                               help="商品の重量をグラムで入力してください")
+        shipping_method = st.selectbox("配送方法（安い順）", 
+                                     ["Surface（船便・最安）", "SAL（エコノミー航空便）", "Air（航空便）", "EMS（国際スピード郵便・最速）"])
     
     # Calculate button
-    if st.button("Calculate Profit", type="primary"):
+    if st.button("💰 利益を計算する", type="primary"):
         if not ebay_input or supplier_price <= 0:
-            st.error("Please enter both eBay URL/ID and supplier price")
+            st.error("eBayのURLまたは商品IDと仕入価格の両方を入力してください")
             return
         
-        with st.spinner("Fetching eBay data..."):
+        with st.spinner("eBayから商品データを取得中..."):
             item_data = ebay_api.get_item_details(ebay_input)
         
         if not item_data:
-            st.error("Could not fetch eBay item data. Please check the URL/ID and try again.")
+            st.error("eBayの商品データを取得できませんでした。URLまたは商品IDを確認してもう一度お試しください。")
             return
         
-        # Calculate shipping cost
-        shipping_cost_jpy = calculate_shipping_cost(weight, shipping_method)
+        # Calculate shipping cost - convert method name back to English for calculation
+        method_mapping = {
+            "Surface（船便・最安）": "Surface",
+            "SAL（エコノミー航空便）": "SAL", 
+            "Air（航空便）": "Air",
+            "EMS（国際スピード郵便・最速）": "EMS"
+        }
+        english_method = method_mapping.get(shipping_method, "Surface")
+        shipping_cost_jpy = calculate_shipping_cost(weight, english_method)
         
         # Get current exchange rate
         usd_jpy_rate = get_currency_rate()
@@ -133,31 +140,31 @@ def main():
         )
         
         # Display results
-        st.header("📊 Calculation Results")
+        st.header("📊 計算結果")
         
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("Selling Price", f"${selling_price:.2f}")
+            st.metric("販売価格", f"${selling_price:.2f}")
         with col2:
-            st.metric("Total Costs", f"${supplier_cost_usd + ebay_fees + shipping_cost_usd:.2f}")
+            st.metric("総コスト", f"${supplier_cost_usd + ebay_fees + shipping_cost_usd:.2f}")
         with col3:
-            st.metric("Profit", f"${profit_usd:.2f}", 
+            st.metric("利益", f"${profit_usd:.2f}", 
                      delta=f"{margin_percent:.1f}%" if profit_usd > 0 else None)
         with col4:
-            st.metric("Margin", f"{margin_percent:.1f}%")
+            st.metric("利益率", f"{margin_percent:.1f}%")
         
         # Detailed breakdown
-        st.subheader("💡 Breakdown")
+        st.subheader("💡 詳細内訳")
         breakdown_data = {
-            "Item": [
-                "Selling Price (USD)",
-                "Supplier Cost (JPY → USD)",
-                "eBay Fees (USD)",
-                "Shipping Cost (JPY → USD)",
-                "Total Profit (USD)",
-                "Profit Margin (%)"
+            "項目": [
+                "eBay販売価格（米ドル）",
+                "仕入コスト（円→ドル）",
+                "eBay手数料（米ドル）",
+                "送料（円→ドル）",
+                "最終利益（米ドル）",
+                "利益率（％）"
             ],
-            "Amount": [
+            "金額": [
                 f"${selling_price:.2f}",
                 f"${supplier_cost_usd:.2f}",
                 f"${ebay_fees:.2f}",
@@ -171,16 +178,16 @@ def main():
         
         # Add to results history
         new_row = pd.DataFrame([{
-            'Item ID': item_data.get('item_id', 'N/A'),
-            'Title': item_data['title'],
-            'Selling Price (USD)': f"${selling_price:.2f}",
-            'Supplier Cost (JPY)': f"¥{supplier_price:,.0f}",
-            'Shipping Method': shipping_method,
-            'Shipping Cost (JPY)': f"¥{shipping_cost_jpy:,}",
-            'eBay Fees (USD)': f"${ebay_fees:.2f}",
-            'Profit (USD)': f"${profit_usd:.2f}",
-            'Margin (%)': f"{margin_percent:.1f}%",
-            'Calculated At': datetime.now().strftime("%Y-%m-%d %H:%M")
+            '商品ID': item_data.get('item_id', 'N/A'),
+            '商品タイトル': item_data['title'],
+            'eBay販売価格 (USD)': f"${selling_price:.2f}",
+            '仕入価格 (JPY)': f"¥{supplier_price:,.0f}",
+            '配送方法': shipping_method,
+            '送料 (JPY)': f"¥{shipping_cost_jpy:,}",
+            'eBay手数料 (USD)': f"${ebay_fees:.2f}",
+            '利益 (USD)': f"${profit_usd:.2f}",
+            '利益率 (%)': f"{margin_percent:.1f}%",
+            '計算日時': datetime.now().strftime("%Y-%m-%d %H:%M")
         }])
         
         st.session_state.results_df = pd.concat([new_row, st.session_state.results_df], 
@@ -188,7 +195,7 @@ def main():
     
     # Results history
     if not st.session_state.results_df.empty:
-        st.header("📋 Calculation History")
+        st.header("📋 計算履歴")
         st.dataframe(st.session_state.results_df, use_container_width=True)
         
         # CSV download
@@ -197,37 +204,46 @@ def main():
         csv_data = csv_buffer.getvalue()
         
         st.download_button(
-            label="📥 Download Results as CSV",
+            label="📥 結果をCSVでダウンロード",
             data=csv_data,
-            file_name=f"ebay_profit_analysis_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            file_name=f"ebay利益分析_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
             mime="text/csv"
         )
         
         # Clear history button
-        if st.button("🗑️ Clear History"):
+        if st.button("🗑️ 履歴をクリア"):
             st.session_state.results_df = pd.DataFrame(columns=[
-                'Item ID', 'Title', 'Selling Price (USD)', 'Supplier Cost (JPY)', 
-                'Shipping Method', 'Shipping Cost (JPY)', 'eBay Fees (USD)', 
-                'Profit (USD)', 'Margin (%)', 'Calculated At'
+                '商品ID', '商品タイトル', 'eBay販売価格 (USD)', '仕入価格 (JPY)', 
+                '配送方法', '送料 (JPY)', 'eBay手数料 (USD)', 
+                '利益 (USD)', '利益率 (%)', '計算日時'
             ])
             st.rerun()
     
     # Sidebar with shipping rates
     with st.sidebar:
-        st.header("📦 Japan Post Shipping Rates")
+        st.header("📦 日本郵便 国際配送料金表")
         rates = load_shipping_rates()
         
-        for method, rate_table in rates.items():
-            with st.expander(f"{method} Rates"):
-                for weight_range, cost in rate_table.items():
-                    st.write(f"{weight_range.replace('_', ' ').title()}: ¥{cost:,}")
+        method_names = {
+            "Surface": "船便（最安・2-3ヶ月）",
+            "SAL": "エコノミー航空便（1-2週間）", 
+            "Air": "航空便（1週間）",
+            "EMS": "国際スピード郵便（3-6日）"
+        }
         
-        st.header("ℹ️ Notes")
+        for method, rate_table in rates.items():
+            japanese_name = method_names.get(method, method)
+            with st.expander(f"{japanese_name} 料金"):
+                for weight_range, cost in rate_table.items():
+                    weight_jp = weight_range.replace('up_to_', '～').replace('g', 'g').replace('_to_', '-').replace('over_', '')
+                    st.write(f"{weight_jp}: ¥{cost:,}")
+        
+        st.header("ℹ️ ご利用について")
         st.write("""
-        - Prices are in Japanese Yen (JPY) for shipping
-        - eBay fees typically range from 8.75% to 12.75%
-        - Currency conversion uses approximate rates
-        - For accurate API data, configure eBay API keys
+        - 送料は日本郵便の国際配送料金（日本円）です
+        - eBay手数料は通常8.75%〜12.75%です
+        - 為替レートは最新レートを自動取得します
+        - より正確なデータには、eBay API設定が推奨されます
         """)
 
 if __name__ == "__main__":
