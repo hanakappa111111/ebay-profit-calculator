@@ -196,7 +196,7 @@ def main():
                 st.warning("⚠️ 商品URLまたは商品IDを入力してください。")
         
         supplier_price = st.number_input("仕入価格（日本円）", 
-                                       min_value=0.0, step=100.0, 
+                                       min_value=0, step=100, value=0, format="%d",
                                        help="あなたが商品を仕入れた（購入した）価格を日本円で入力してください。eBayでの販売価格ではありません。")
     
     with col2:
@@ -234,15 +234,12 @@ def main():
         
         shipping_method = st.selectbox("配送方法", 
                                      [
-                                         "日本郵便 - 船便（最安・2-3ヶ月）", 
-                                         "日本郵便 - SAL便（エコノミー航空便・1-2週間）",
-                                         "日本郵便 - 航空便（1週間）", 
-                                         "日本郵便 - 国際eパケット（1-2週間）",
-                                         "日本郵便 - EMS（国際スピード郵便・3-6日）",
-                                         "ヤマト運輸 - 国際宅急便（5-10日）",
-                                         "佐川急便 - 国際宅配便（1週間）",
-                                         "DHL Express（2-5日・高速）",
-                                         "FedEx（2-5日・高速）"
+                                         "EMS（国際スピード郵便）",
+                                         "国際eパケット",
+                                         "ヤマト運輸",
+                                         "佐川急便",
+                                         "DHL Express",
+                                         "FedEx"
                                      ])
     
     # Calculate button
@@ -305,12 +302,12 @@ def main():
         
         # Calculate shipping cost - convert method name back to English for calculation
         method_mapping = {
-            "日本郵便 - 国際eパケット（1-2週間）": "SAL",  # eパケットはSAL相当の料金
-            "日本郵便 - EMS（国際スピード郵便・3-6日）": "EMS",
-            "ヤマト運輸 - 国際宅急便（5-10日）": "Air",  # 航空便相当
-            "佐川急便 - 国際宅配便（1週間）": "Air",  # 航空便相当
-            "DHL Express（2-5日・高速）": "EMS",  # EMS相当の料金
-            "FedEx（2-5日・高速）": "EMS"  # EMS相当の料金
+            "EMS（国際スピード郵便）": "EMS",
+            "国際eパケット": "SAL",  # eパケットはSAL相当の料金
+            "ヤマト運輸": "Air",  # 航空便相当
+            "佐川急便": "Air",  # 航空便相当
+            "DHL Express": "EMS",  # EMS相当の料金
+            "FedEx": "EMS"  # EMS相当の料金
         }
         english_method = method_mapping.get(shipping_method, "Surface")
         shipping_cost_jpy = calculate_shipping_cost(weight, english_method, length, width, height)
@@ -428,10 +425,9 @@ def main():
         rates = load_shipping_rates()
         
         method_names = {
-            "Surface": "日本郵便 - 船便",
-            "SAL": "日本郵便 - SAL便/eパケット", 
-            "Air": "日本郵便 - 航空便 / ヤマト・佐川",
-            "EMS": "日本郵便 - EMS / DHL・FedEx"
+            "SAL": "国際eパケット", 
+            "Air": "ヤマト運輸 / 佐川急便",
+            "EMS": "EMS / DHL Express / FedEx"
         }
         
         for method, rate_table in rates.items():
@@ -443,20 +439,23 @@ def main():
         
         st.header("📋 利用可能な配送業者")
         st.write("""
-        **日本郵便（Japan Post）**
-        - EMS、国際eパケット、航空便、船便
+        **EMS（国際スピード郵便）**
+        - 3-6日で配送、追跡可能
+        
+        **国際eパケット**
+        - 1-2週間、小型軽量物向け
         
         **ヤマト運輸**
-        - 国際宅急便
+        - 国際宅急便、5-10日
         
         **佐川急便**
-        - 国際宅配便（DHL提携便など）
+        - 国際宅配便、1週間程度
         
         **DHL Express**
-        - 国際高速配送サービス
+        - 2-5日、高速配送
         
         **FedEx**
-        - 国際高速配送サービス
+        - 2-5日、高速配送
         """)
         
         st.header("ℹ️ ご利用について")
