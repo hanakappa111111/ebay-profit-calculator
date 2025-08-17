@@ -71,30 +71,76 @@ class eBayAPI:
     def fetch_item_via_scraping(self, item_id: str) -> Optional[Dict]:
         """Fetch item details via web scraping (fallback method)"""
         try:
-            url = f"https://www.ebay.com/itm/{item_id}"
+            # Try multiple URL formats and approaches
+            urls_to_try = [
+                f"https://www.ebay.com/itm/{item_id}",
+                f"https://www.ebay.com/itm/{item_id}?_from=R40",
+                f"https://www.ebay.com/p/{item_id}",
+                f"https://www.ebay.com/sch/i.html?_nkw={item_id}"
+            ]
             
-            # Enhanced headers to mimic real browser
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-                'Accept-Language': 'en-US,en;q=0.9,ja;q=0.8',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'none',
-                'Sec-Fetch-User': '?1',
-                'Cache-Control': 'max-age=0',
-                'DNT': '1'
-            }
+            # Multiple user agents to rotate
+            user_agents = [
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0'
+            ]
             
-            response = self.session.get(url, headers=headers, timeout=10)
+            import random
+            import time
+            
+            for attempt, url in enumerate(urls_to_try):
+                try:
+                    # Random delay to avoid rate limiting
+                    time.sleep(random.uniform(1, 3))
+                    
+                    # Enhanced headers to mimic real browser
+                    headers = {
+                        'User-Agent': random.choice(user_agents),
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                        'Accept-Language': 'en-US,en;q=0.9,ja;q=0.8',
+                        'Accept-Encoding': 'gzip, deflate, br',
+                        'Connection': 'keep-alive',
+                        'Upgrade-Insecure-Requests': '1',
+                        'Sec-Fetch-Dest': 'document',
+                        'Sec-Fetch-Mode': 'navigate',
+                        'Sec-Fetch-Site': 'none' if attempt == 0 else 'same-origin',
+                        'Sec-Fetch-User': '?1',
+                        'Cache-Control': 'max-age=0',
+                        'DNT': '1',
+                        'Sec-Ch-Ua': '"Not A(Brand";v="99", "Google Chrome";v="121", "Chromium";v="121"',
+                        'Sec-Ch-Ua-Mobile': '?0',
+                        'Sec-Ch-Ua-Platform': '"macOS"',
+                        'Referer': 'https://www.ebay.com/' if attempt > 0 else None
+                    }
+                    
+                    # Remove None values
+                    headers = {k: v for k, v in headers.items() if v is not None}
+                    
+                    response = self.session.get(url, headers=headers, timeout=15)
+                    
+                    # Check if we got blocked
+                    if 'checking your browser' in response.text.lower() or response.status_code == 403:
+                        continue
+                    
+                    if response.status_code == 200:
+                        break
+                        
+                except Exception as e:
+                    if attempt == len(urls_to_try) - 1:
+                        raise e
+                    continue
+            else:
+                return None
             
             # Store debug info for UI display
             self.last_debug_info = {
                 'response_status': response.status_code,
                 'response_url': str(response.url),
+                'attempt_count': attempt + 1,
+                'successful_url': url,
+                'is_blocked': 'checking your browser' in response.text.lower(),
                 'extracted_data': {}
             }
             
@@ -110,14 +156,20 @@ class eBayAPI:
             price = self._extract_price(soup)
             
             # Store extracted data for debugging
+            page_text = soup.get_text().lower()
+            price_mentions = [line.strip() for line in soup.get_text().split('\n') if '$' in line and line.strip()][:5]
+            
             self.last_debug_info['extracted_data'] = {
                 'title': title,
                 'price': price,
                 'dimensions': dimensions,
                 'page_length': len(response.content),
-                'contains_price_data': 'price' in soup.get_text().lower(),
-                'contains_weight_data': any(word in soup.get_text().lower() for word in ['weight', '重量', 'kg', 'gram']),
-                'contains_dimension_data': any(word in soup.get_text().lower() for word in ['dimension', 'size', 'length', 'width', 'height'])
+                'contains_price_data': '$' in page_text or 'usd' in page_text,
+                'contains_weight_data': any(word in page_text for word in ['weight', '重量', 'kg', 'gram', 'lb', 'oz']),
+                'contains_dimension_data': any(word in page_text for word in ['dimension', 'size', 'length', 'width', 'height']),
+                'price_mentions_sample': price_mentions,
+                'title_selectors_found': len(soup.select('h1')),
+                'price_selectors_found': len(soup.select('[data-testid="price"]'))
             }
             
             # Try multiple title selectors for better compatibility
@@ -343,11 +395,16 @@ class eBayAPI:
         return dimensions_data
     
     def _extract_price(self, soup: BeautifulSoup) -> float:
-        """Extract item price from HTML"""
-        # More comprehensive price selectors
-        selectors = [
+        """Extract item price from HTML with improved accuracy"""
+        # Priority-ordered selectors for different eBay layouts
+        priority_selectors = [
+            # Modern eBay layouts
+            'span[data-testid="price"] .ux-textspans',
             '[data-testid="price"] .ux-textspans',
-            '[data-testid="price"] span',
+            'span[data-testid="price"] span',
+            '.ux-textspans--BOLD',
+            
+            # Legacy selectors
             '.notranslate[data-testid="price"] .ux-textspans',
             '.price .notranslate', 
             '#prcIsum .notranslate',
@@ -355,32 +412,69 @@ class eBayAPI:
             '.ebay-price .notranslate',
             '.display-price',
             '[data-testid="price"] .notranslate',
-            'span[data-testid="price"] span',
-            '.ux-textspans--BOLD'
+            
+            # Fallback selectors
+            '.ux-price-display__range',
+            '.ux-price-display',
+            '.notranslate'
         ]
         
-        for selector in selectors:
+        # Enhanced price patterns with priorities
+        def extract_price_from_text(text):
+            price_patterns = [
+                r'US\s*\$\s*([\d,]+\.?\d*)',  # US $44.00
+                r'\$\s*([\d,]+\.?\d*)',       # $44.00
+                r'([\d,]+\.?\d*)\s*USD',      # 44.00 USD
+                r'([\d,]+\.?\d*)\s*dollars?', # 44.00 dollars
+                r'([\d,]+\.?\d*)'             # 44.00
+            ]
+            
+            for pattern in price_patterns:
+                matches = re.findall(pattern, text.replace(',', ''), re.IGNORECASE)
+                for match in matches:
+                    try:
+                        price = float(match)
+                        # Valid price range check
+                        if 0.01 <= price <= 999999:
+                            return price
+                    except (ValueError, TypeError):
+                        continue
+            return None
+        
+        # Try priority selectors first
+        for selector in priority_selectors:
             elements = soup.select(selector)
             for element in elements:
-                if element:
-                    price_text = element.get_text()
-                    # Look for price patterns like $123.45, US $123.45, etc.
-                    price_patterns = [
-                        r'US\s*\$\s*([\d,]+\.?\d*)',
-                        r'\$\s*([\d,]+\.?\d*)',
-                        r'([\d,]+\.?\d*)\s*USD',
-                        r'([\d,]+\.?\d*)'
-                    ]
-                    
-                    for pattern in price_patterns:
-                        price_match = re.search(pattern, price_text.replace(',', ''))
-                        if price_match:
-                            try:
-                                price = float(price_match.group(1))
-                                if price > 0:  # Ensure it's a valid price
-                                    return price
-                            except (ValueError, IndexError):
-                                continue
+                if element and element.get_text().strip():
+                    text = element.get_text().strip()
+                    price = extract_price_from_text(text)
+                    if price:
+                        return price
+        
+        # Fallback: search in script tags for JSON data
+        scripts = soup.find_all('script', type='application/ld+json')
+        for script in scripts:
+            try:
+                import json
+                data = json.loads(script.string)
+                if isinstance(data, dict):
+                    # Look for offers or price in structured data
+                    offers = data.get('offers', {})
+                    if offers and 'price' in offers:
+                        price = float(offers['price'])
+                        if price > 0:
+                            return price
+            except (json.JSONDecodeError, ValueError, TypeError):
+                continue
+        
+        # Last resort: search all text for price patterns
+        all_text = soup.get_text()
+        # Focus on lines that contain currency symbols
+        lines_with_currency = [line for line in all_text.split('\n') if '$' in line or 'USD' in line]
+        for line in lines_with_currency:
+            price = extract_price_from_text(line)
+            if price:
+                return price
         
         return 0.0
     
