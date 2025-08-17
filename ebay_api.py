@@ -80,6 +80,8 @@ class eBayAPI:
             soup = BeautifulSoup(response.content, 'html.parser')
             
             # Extract item details
+            dimensions = self._extract_dimensions_and_weight(soup)
+            
             item_data = {
                 'item_id': item_id,
                 'title': self._extract_title(soup),
@@ -87,9 +89,10 @@ class eBayAPI:
                 'category_id': self._extract_category(soup),
                 'currency': 'USD',
                 'condition': self._extract_condition(soup),
-                'shipping_weight': 500,  # Default weight in grams
+                'shipping_weight': dimensions.get('weight', 500),  # Use extracted weight or default
                 'image_url': self._extract_image(soup),
-                'seller_info': self._extract_seller_info(soup)
+                'seller_info': self._extract_seller_info(soup),
+                'dimensions': dimensions
             }
             
             return item_data if item_data['title'] and item_data['price'] else None
@@ -113,6 +116,109 @@ class eBayAPI:
                 return element.get_text().strip()
         
         return ""
+    
+    def _extract_dimensions_and_weight(self, soup: BeautifulSoup) -> Dict:
+        """Extract product dimensions and weight from HTML"""
+        dimensions_data = {
+            'length': None,
+            'width': None, 
+            'height': None,
+            'weight': None,
+            'weight_unit': 'g',
+            'dimension_unit': 'cm'
+        }
+        
+        # Look for shipping and payment section
+        shipping_section = soup.find('div', {'id': 'shipping-payment'}) or soup.find('div', class_='u-flL')
+        
+        # Try to find dimensions in various locations
+        selectors_to_try = [
+            '.itemAttr',
+            '.attrLabels',
+            '.u-flL.condText',
+            '.specs',
+            '.itemSpecifics'
+        ]
+        
+        text_content = ""
+        if shipping_section:
+            text_content += shipping_section.get_text()
+        
+        # Get all text content from potential locations
+        for selector in selectors_to_try:
+            elements = soup.select(selector)
+            for element in elements:
+                text_content += " " + element.get_text()
+        
+        # Extract weight information
+        import re
+        
+        # Weight patterns
+        weight_patterns = [
+            r'(\d+(?:\.\d+)?)\s*(?:kg|キロ|kilogram)',
+            r'(\d+(?:\.\d+)?)\s*(?:g|グラム|gram)',
+            r'(\d+(?:\.\d+)?)\s*(?:lb|pound|ポンド)',
+            r'(\d+(?:\.\d+)?)\s*(?:oz|ounce|オンス)',
+            r'Weight:?\s*(\d+(?:\.\d+)?)\s*(?:kg|g|lb|oz)',
+            r'重量:?\s*(\d+(?:\.\d+)?)\s*(?:kg|g|キロ|グラム)'
+        ]
+        
+        for pattern in weight_patterns:
+            match = re.search(pattern, text_content, re.IGNORECASE)
+            if match:
+                weight_value = float(match.group(1))
+                weight_text = match.group(0).lower()
+                
+                if 'kg' in weight_text or 'キロ' in weight_text:
+                    dimensions_data['weight'] = int(weight_value * 1000)  # Convert to grams
+                elif 'lb' in weight_text or 'pound' in weight_text:
+                    dimensions_data['weight'] = int(weight_value * 453.592)  # Convert to grams
+                elif 'oz' in weight_text or 'ounce' in weight_text:
+                    dimensions_data['weight'] = int(weight_value * 28.3495)  # Convert to grams
+                else:
+                    dimensions_data['weight'] = int(weight_value)  # Assume grams
+                break
+        
+        # Dimension patterns
+        dimension_patterns = [
+            r'(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)\s*(?:cm|センチ|inch|インチ)',
+            r'Length:?\s*(\d+(?:\.\d+)?)\s*(?:cm|inch)',
+            r'Width:?\s*(\d+(?:\.\d+)?)\s*(?:cm|inch)',
+            r'Height:?\s*(\d+(?:\.\d+)?)\s*(?:cm|inch)',
+            r'Dimensions:?\s*(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)',
+            r'サイズ:?\s*(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)'
+        ]
+        
+        for pattern in dimension_patterns:
+            match = re.search(pattern, text_content, re.IGNORECASE)
+            if match:
+                if 'x' in pattern and len(match.groups()) >= 3:
+                    # L x W x H format
+                    dimensions_data['length'] = float(match.group(1))
+                    dimensions_data['width'] = float(match.group(2))
+                    dimensions_data['height'] = float(match.group(3))
+                    
+                    # Check for inch and convert to cm
+                    if 'inch' in match.group(0).lower() or 'インチ' in match.group(0):
+                        dimensions_data['length'] *= 2.54
+                        dimensions_data['width'] *= 2.54
+                        dimensions_data['height'] *= 2.54
+                        dimensions_data['dimension_unit'] = 'cm'
+                    break
+                else:
+                    # Single dimension
+                    value = float(match.group(1))
+                    if 'inch' in match.group(0).lower():
+                        value *= 2.54
+                    
+                    if 'length' in pattern.lower():
+                        dimensions_data['length'] = value
+                    elif 'width' in pattern.lower():
+                        dimensions_data['width'] = value
+                    elif 'height' in pattern.lower():
+                        dimensions_data['height'] = value
+        
+        return dimensions_data
     
     def _extract_price(self, soup: BeautifulSoup) -> float:
         """Extract item price from HTML"""

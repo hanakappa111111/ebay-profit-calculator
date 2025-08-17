@@ -24,8 +24,8 @@ def load_shipping_rates():
     """Load Japan Post shipping rates"""
     return SHIPPING_RATES
 
-def calculate_shipping_cost(weight_g: int, method: str) -> int:
-    """Calculate shipping cost based on weight and method"""
+def calculate_shipping_cost(weight_g: int, method: str, length_cm: float = 0, width_cm: float = 0, height_cm: float = 0) -> int:
+    """Calculate shipping cost based on weight, dimensions and method"""
     rates = load_shipping_rates()
     
     if method not in rates:
@@ -33,16 +33,46 @@ def calculate_shipping_cost(weight_g: int, method: str) -> int:
     
     rate_table = rates[method]
     
+    # Calculate base cost by weight
     if weight_g <= 500:
-        return rate_table["up_to_500g"]
+        base_cost = rate_table["up_to_500g"]
     elif weight_g <= 1000:
-        return rate_table["501_to_1000g"]
+        base_cost = rate_table["501_to_1000g"]
     elif weight_g <= 1500:
-        return rate_table["1001_to_1500g"]
+        base_cost = rate_table["1001_to_1500g"]
     elif weight_g <= 2000:
-        return rate_table["1501_to_2000g"]
+        base_cost = rate_table["1501_to_2000g"]
     else:
-        return rate_table["over_2000g"]
+        base_cost = rate_table["over_2000g"]
+    
+    # Calculate dimensional weight (length x width x height / 5000 for international shipping)
+    if length_cm > 0 and width_cm > 0 and height_cm > 0:
+        dimensional_weight = (length_cm * width_cm * height_cm) / 5000  # grams
+        
+        # Use the higher of actual weight or dimensional weight
+        effective_weight = max(weight_g, dimensional_weight)
+        
+        # Recalculate if dimensional weight is higher
+        if effective_weight > weight_g:
+            if effective_weight <= 500:
+                base_cost = rate_table["up_to_500g"]
+            elif effective_weight <= 1000:
+                base_cost = rate_table["501_to_1000g"]
+            elif effective_weight <= 1500:
+                base_cost = rate_table["1001_to_1500g"]
+            elif effective_weight <= 2000:
+                base_cost = rate_table["1501_to_2000g"]
+            else:
+                base_cost = rate_table["over_2000g"]
+        
+        # Add size surcharge for oversized packages
+        max_dimension = max(length_cm, width_cm, height_cm)
+        if max_dimension > 60:  # Over 60cm in any dimension
+            base_cost = int(base_cost * 1.5)  # 50% surcharge
+        elif max_dimension > 40:  # Over 40cm in any dimension
+            base_cost = int(base_cost * 1.2)  # 20% surcharge
+    
+    return int(base_cost)
 
 @st.cache_data
 def get_currency_rate() -> float:
@@ -105,9 +135,37 @@ def main():
     
     with col2:
         st.header("🚚 配送設定")
+        
+        # Initialize session state for dimensions
+        if 'auto_weight' not in st.session_state:
+            st.session_state.auto_weight = 500
+        if 'auto_dimensions' not in st.session_state:
+            st.session_state.auto_dimensions = {'length': None, 'width': None, 'height': None}
+        
+        # Weight input with auto-detected value
         weight = st.number_input("商品重量（グラム）", 
-                               min_value=1, max_value=10000, value=500,
-                               help="商品の重量をグラムで入力してください")
+                               min_value=1, max_value=10000, 
+                               value=st.session_state.auto_weight,
+                               help="eBayから自動取得された重量です。必要に応じて調整してください")
+        
+        # Dimension inputs
+        col2a, col2b, col2c = st.columns(3)
+        with col2a:
+            length = st.number_input("長さ（cm）", 
+                                   min_value=0.0, 
+                                   value=st.session_state.auto_dimensions.get('length', 0.0) or 0.0,
+                                   help="商品の長さ（自動取得または手動入力）")
+        with col2b:
+            width = st.number_input("幅（cm）", 
+                                  min_value=0.0,
+                                  value=st.session_state.auto_dimensions.get('width', 0.0) or 0.0,
+                                  help="商品の幅（自動取得または手動入力）")
+        with col2c:
+            height = st.number_input("高さ（cm）", 
+                                   min_value=0.0,
+                                   value=st.session_state.auto_dimensions.get('height', 0.0) or 0.0,
+                                   help="商品の高さ（自動取得または手動入力）")
+        
         shipping_method = st.selectbox("配送方法", 
                                      [
                                          "日本郵便 - 船便（最安・2-3ヶ月）", 
@@ -134,11 +192,40 @@ def main():
             st.error("eBayの商品データを取得できませんでした。URLまたは商品IDを確認してもう一度お試しください。")
             return
         
+        # Update session state with auto-detected dimensions
+        if item_data.get('shipping_weight'):
+            st.session_state.auto_weight = item_data['shipping_weight']
+        
+        if item_data.get('dimensions'):
+            dimensions = item_data['dimensions']
+            st.session_state.auto_dimensions = {
+                'length': dimensions.get('length'),
+                'width': dimensions.get('width'),
+                'height': dimensions.get('height')
+            }
+            
+            # Show what was auto-detected
+            auto_info = []
+            if dimensions.get('weight'):
+                auto_info.append(f"重量: {dimensions['weight']}g")
+            if dimensions.get('length') and dimensions.get('width') and dimensions.get('height'):
+                auto_info.append(f"サイズ: {dimensions['length']:.1f} x {dimensions['width']:.1f} x {dimensions['height']:.1f} cm")
+            elif any([dimensions.get('length'), dimensions.get('width'), dimensions.get('height')]):
+                size_parts = []
+                if dimensions.get('length'): size_parts.append(f"長さ{dimensions['length']:.1f}cm")
+                if dimensions.get('width'): size_parts.append(f"幅{dimensions['width']:.1f}cm") 
+                if dimensions.get('height'): size_parts.append(f"高さ{dimensions['height']:.1f}cm")
+                auto_info.append("サイズ: " + ", ".join(size_parts))
+            
+            if auto_info:
+                st.success(f"🎯 自動取得成功: {' / '.join(auto_info)}")
+            else:
+                st.warning("⚠️ 重量・サイズ情報が見つかりませんでした。手動で入力してください。")
+        
+        st.info("💡 上記の配送設定で重量・サイズを確認・調整してから再計算してください。")
+        
         # Calculate shipping cost - convert method name back to English for calculation
         method_mapping = {
-            "日本郵便 - 船便（最安・2-3ヶ月）": "Surface",
-            "日本郵便 - SAL便（エコノミー航空便・1-2週間）": "SAL", 
-            "日本郵便 - 航空便（1週間）": "Air",
             "日本郵便 - 国際eパケット（1-2週間）": "SAL",  # eパケットはSAL相当の料金
             "日本郵便 - EMS（国際スピード郵便・3-6日）": "EMS",
             "ヤマト運輸 - 国際宅急便（5-10日）": "Air",  # 航空便相当
@@ -147,7 +234,7 @@ def main():
             "FedEx（2-5日・高速）": "EMS"  # EMS相当の料金
         }
         english_method = method_mapping.get(shipping_method, "Surface")
-        shipping_cost_jpy = calculate_shipping_cost(weight, english_method)
+        shipping_cost_jpy = calculate_shipping_cost(weight, english_method, length, width, height)
         
         # Get current exchange rate
         usd_jpy_rate = get_currency_rate()
@@ -181,20 +268,31 @@ def main():
         
         # Detailed breakdown
         st.subheader("💡 詳細内訳")
+        # Calculate dimensional weight for display
+        dimensional_weight = 0
+        if length > 0 and width > 0 and height > 0:
+            dimensional_weight = (length * width * height) / 5000
+        
         breakdown_data = {
             "項目": [
                 "eBay販売価格（米ドル）",
                 "仕入コスト（円→ドル）",
                 "eBay手数料（米ドル）",
                 "送料（円→ドル）",
+                "商品重量",
+                "サイズ（長x幅x高）",
+                "容積重量",
                 "最終利益（米ドル）",
                 "利益率（％）"
             ],
-            "金額": [
+            "金額・詳細": [
                 f"${selling_price:.2f}",
                 f"${supplier_cost_usd:.2f}",
                 f"${ebay_fees:.2f}",
-                f"${shipping_cost_usd:.2f}",
+                f"${shipping_cost_usd:.2f} (¥{shipping_cost_jpy:,})",
+                f"{weight:,}g",
+                f"{length:.1f} x {width:.1f} x {height:.1f} cm" if all([length, width, height]) else "未設定",
+                f"{dimensional_weight:.0f}g" if dimensional_weight > 0 else "計算不可",
                 f"${profit_usd:.2f}",
                 f"{margin_percent:.1f}%"
             ]
