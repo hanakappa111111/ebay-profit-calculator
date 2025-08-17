@@ -73,6 +73,17 @@ def main():
     st.title("💰 eBay転売利益計算ツール")
     st.subheader("日本からeBayへの転売利益を簡単計算！")
     
+    # Add explanation
+    st.info("""
+    **使い方：**
+    1. eBayで販売中の商品URLまたは商品IDを入力
+    2. あなたがその商品を仕入れた（購入した）価格を入力
+    3. 商品重量と配送方法を選択
+    4. 「利益を計算する」ボタンをクリック
+    
+    ⚠️ **仕入価格**は、eBayでの販売価格ではなく、あなたが商品を購入した価格です。
+    """)
+    
     # Initialize session state for results
     if 'results_df' not in st.session_state:
         st.session_state.results_df = pd.DataFrame(columns=[
@@ -90,15 +101,25 @@ def main():
                                   placeholder="eBayのURLまたは数字の商品IDを入力")
         supplier_price = st.number_input("仕入価格（日本円）", 
                                        min_value=0.0, step=100.0, 
-                                       help="商品の仕入れにかかった価格を日本円で入力してください")
+                                       help="あなたが商品を仕入れた（購入した）価格を日本円で入力してください。eBayでの販売価格ではありません。")
     
     with col2:
         st.header("🚚 配送設定")
         weight = st.number_input("商品重量（グラム）", 
                                min_value=1, max_value=10000, value=500,
                                help="商品の重量をグラムで入力してください")
-        shipping_method = st.selectbox("配送方法（安い順）", 
-                                     ["Surface（船便・最安）", "SAL（エコノミー航空便）", "Air（航空便）", "EMS（国際スピード郵便・最速）"])
+        shipping_method = st.selectbox("配送方法", 
+                                     [
+                                         "日本郵便 - 船便（最安・2-3ヶ月）", 
+                                         "日本郵便 - SAL便（エコノミー航空便・1-2週間）",
+                                         "日本郵便 - 航空便（1週間）", 
+                                         "日本郵便 - 国際eパケット（1-2週間）",
+                                         "日本郵便 - EMS（国際スピード郵便・3-6日）",
+                                         "ヤマト運輸 - 国際宅急便（5-10日）",
+                                         "佐川急便 - 国際宅配便（1週間）",
+                                         "DHL Express（2-5日・高速）",
+                                         "FedEx（2-5日・高速）"
+                                     ])
     
     # Calculate button
     if st.button("💰 利益を計算する", type="primary"):
@@ -115,10 +136,15 @@ def main():
         
         # Calculate shipping cost - convert method name back to English for calculation
         method_mapping = {
-            "Surface（船便・最安）": "Surface",
-            "SAL（エコノミー航空便）": "SAL", 
-            "Air（航空便）": "Air",
-            "EMS（国際スピード郵便・最速）": "EMS"
+            "日本郵便 - 船便（最安・2-3ヶ月）": "Surface",
+            "日本郵便 - SAL便（エコノミー航空便・1-2週間）": "SAL", 
+            "日本郵便 - 航空便（1週間）": "Air",
+            "日本郵便 - 国際eパケット（1-2週間）": "SAL",  # eパケットはSAL相当の料金
+            "日本郵便 - EMS（国際スピード郵便・3-6日）": "EMS",
+            "ヤマト運輸 - 国際宅急便（5-10日）": "Air",  # 航空便相当
+            "佐川急便 - 国際宅配便（1週間）": "Air",  # 航空便相当
+            "DHL Express（2-5日・高速）": "EMS",  # EMS相当の料金
+            "FedEx（2-5日・高速）": "EMS"  # EMS相当の料金
         }
         english_method = method_mapping.get(shipping_method, "Surface")
         shipping_cost_jpy = calculate_shipping_cost(weight, english_method)
@@ -221,29 +247,47 @@ def main():
     
     # Sidebar with shipping rates
     with st.sidebar:
-        st.header("📦 日本郵便 国際配送料金表")
+        st.header("📦 国際配送料金表（参考）")
         rates = load_shipping_rates()
         
         method_names = {
-            "Surface": "船便（最安・2-3ヶ月）",
-            "SAL": "エコノミー航空便（1-2週間）", 
-            "Air": "航空便（1週間）",
-            "EMS": "国際スピード郵便（3-6日）"
+            "Surface": "日本郵便 - 船便",
+            "SAL": "日本郵便 - SAL便/eパケット", 
+            "Air": "日本郵便 - 航空便 / ヤマト・佐川",
+            "EMS": "日本郵便 - EMS / DHL・FedEx"
         }
         
         for method, rate_table in rates.items():
             japanese_name = method_names.get(method, method)
-            with st.expander(f"{japanese_name} 料金"):
+            with st.expander(f"{japanese_name} 参考料金"):
                 for weight_range, cost in rate_table.items():
                     weight_jp = weight_range.replace('up_to_', '～').replace('g', 'g').replace('_to_', '-').replace('over_', '')
                     st.write(f"{weight_jp}: ¥{cost:,}")
         
+        st.header("📋 利用可能な配送業者")
+        st.write("""
+        **日本郵便（Japan Post）**
+        - EMS、国際eパケット、航空便、船便
+        
+        **ヤマト運輸**
+        - 国際宅急便
+        
+        **佐川急便**
+        - 国際宅配便（DHL提携便など）
+        
+        **DHL Express**
+        - 国際高速配送サービス
+        
+        **FedEx**
+        - 国際高速配送サービス
+        """)
+        
         st.header("ℹ️ ご利用について")
         st.write("""
-        - 送料は日本郵便の国際配送料金（日本円）です
+        - 料金は日本郵便ベースの参考価格です
+        - 実際の料金は配送業者にご確認ください
         - eBay手数料は通常8.75%〜12.75%です
         - 為替レートは最新レートを自動取得します
-        - より正確なデータには、eBay API設定が推奨されます
         """)
 
 if __name__ == "__main__":
