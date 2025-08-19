@@ -3,9 +3,11 @@ import pandas as pd
 import requests
 import json
 import re
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, List
 from datetime import datetime
 import io
+import base64
+from urllib.parse import quote
 
 # Import our custom modules
 from config import SHIPPING_RATES, CURRENCY_CONFIG, APP_CONFIG
@@ -99,11 +101,114 @@ def calculate_profit(selling_price: float, fee_rate: float, shipping_cost: int, 
     
     return profit, margin
 
+# Mock eBay search data
+MOCK_SEARCH_DATA = [
+    {
+        "タイトル": "Nintendo Switch 本体 グレー",
+        "価格_USD": 220,
+        "送料_USD": 20,
+        "売れた日": "2025-01-15",
+        "商品状態": "中古 - 良い",
+        "出品者": "seller123 (評価 1520)"
+    },
+    {
+        "タイトル": "Apple iPhone 13 Pro 256GB ゴールド",
+        "価格_USD": 550,
+        "送料_USD": 25,
+        "売れた日": "2025-01-18",
+        "商品状態": "中古 - 非常に良い",
+        "出品者": "best_seller (評価 3210)"
+    },
+    {
+        "タイトル": "SONY WH-1000XM5 ヘッドホン",
+        "価格_USD": 300,
+        "送料_USD": 15,
+        "売れた日": "2025-01-20",
+        "商品状態": "新品同様",
+        "出品者": "sound_japan (評価 985)"
+    },
+    {
+        "タイトル": "LEGO スターウォーズ ミレニアムファルコン",
+        "価格_USD": 150,
+        "送料_USD": 30,
+        "売れた日": "2025-01-22",
+        "商品状態": "中古 - 可",
+        "出品者": "lego_master (評価 422)"
+    },
+    {
+        "タイトル": "Canon EOS R6 Mark II ボディ",
+        "価格_USD": 1250,
+        "送料_USD": 40,
+        "売れた日": "2025-01-25",
+        "商品状態": "新品",
+        "出品者": "camera_pro (評価 5210)"
+    }
+]
+
+@st.cache_data
+def get_usd_to_jpy_rate() -> float:
+    """Get USD to JPY exchange rate"""
+    try:
+        response = requests.get("https://api.exchangerate.host/latest?base=USD&symbols=JPY")
+        if response.status_code == 200:
+            data = response.json()
+            if 'rates' in data and 'JPY' in data['rates']:
+                return data['rates']['JPY']
+    except:
+        pass
+    
+    # Fallback to default rate
+    return 150.0
+
+def mock_ebay_search(keyword: str) -> List[Dict]:
+    """Mock eBay search function"""
+    # Filter mock data based on keyword
+    if keyword:
+        keyword_lower = keyword.lower()
+        filtered_data = []
+        for item in MOCK_SEARCH_DATA:
+            if keyword_lower in item["タイトル"].lower():
+                filtered_data.append(item)
+        return filtered_data if filtered_data else MOCK_SEARCH_DATA
+    else:
+        return MOCK_SEARCH_DATA
+
+def calculate_research_profit(selling_price_usd: float, shipping_usd: float, 
+                            purchase_price_jpy: float, exchange_rate: float) -> Tuple[float, float]:
+    """Calculate profit for research items"""
+    if purchase_price_jpy <= 0:
+        return 0.0, 0.0
+    
+    # Convert to JPY
+    selling_price_jpy = selling_price_usd * exchange_rate
+    shipping_jpy = shipping_usd * exchange_rate
+    
+    # Calculate fees (13% fixed)
+    fees_jpy = selling_price_jpy * 0.13
+    
+    # Calculate profit
+    profit_jpy = selling_price_jpy - purchase_price_jpy - shipping_jpy - fees_jpy
+    profit_margin = (profit_jpy / purchase_price_jpy) * 100 if purchase_price_jpy > 0 else 0
+    
+    return profit_jpy, profit_margin
+
 def main():
     st.title("💰 eBay転売利益計算ツール")
     st.subheader("日本からeBayへの転売利益を簡単計算！")
     
-    # Add explanation
+    # Create tabs
+    tab1, tab2 = st.tabs(["利益計算", "リサーチ"])
+    
+    with tab1:
+        profit_calculator_tab()
+    
+    with tab2:
+        research_tab()
+
+def profit_calculator_tab():
+    """Original profit calculator functionality"""
+    
+    # Add explanation for profit calculator
     st.info("""
     **使い方：**
     1. eBayで販売中の商品URLまたは商品IDを入力
@@ -418,6 +523,201 @@ def main():
                 '利益 (USD)', '利益率 (%)', '計算日時'
             ])
             st.rerun()
+
+def research_tab():
+    """Research tab functionality"""
+    st.header("🔍 商品リサーチ")
+    
+    # Explanation for research tab
+    st.info("""
+    **リサーチ機能の使い方：**
+    1. キーワードを入力して商品を検索
+    2. 検索結果から気になる商品をチェック
+    3. 仕入れ値を入力して利益を計算
+    4. 選択した商品をCSVダウンロードまたは下書き保存
+    
+    💡 **為替レート**: USD→JPY変換は最新レートを自動取得します
+    """)
+    
+    # Search section
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        keyword = st.text_input("キーワードを入力", placeholder="例: Nintendo Switch, iPhone, Canon")
+    with col2:
+        st.write("")
+        st.write("")
+        search_button = st.button("🔍 検索", type="primary")
+    
+    # Initialize session state for research
+    if 'research_results' not in st.session_state:
+        st.session_state.research_results = pd.DataFrame()
+    if 'exchange_rate' not in st.session_state:
+        st.session_state.exchange_rate = get_usd_to_jpy_rate()
+    
+    # Display current exchange rate
+    col1, col2 = st.columns([2, 1])
+    with col2:
+        st.metric("為替レート", f"1 USD = {st.session_state.exchange_rate:.1f} JPY")
+    
+    # Perform search
+    if search_button or keyword:
+        search_results = mock_ebay_search(keyword if keyword else "")
+        
+        if search_results:
+            # Prepare data for display
+            display_data = []
+            for item in search_results:
+                # Convert to JPY
+                price_jpy = item["価格_USD"] * st.session_state.exchange_rate
+                shipping_jpy = item["送料_USD"] * st.session_state.exchange_rate
+                
+                display_data.append({
+                    "チェック": False,
+                    "タイトル": item["タイトル"],
+                    "価格": f"${item['価格_USD']:.0f} (¥{price_jpy:,.0f})",
+                    "送料": f"${item['送料_USD']:.0f} (¥{shipping_jpy:,.0f})",
+                    "売れた日": item["売れた日"],
+                    "商品状態": item["商品状態"],
+                    "出品者": item["出品者"],
+                    "仕入れ値入力": 0,
+                    "利益額": 0.0,
+                    "利益率": 0.0,
+                    "_価格_USD": item["価格_USD"],
+                    "_送料_USD": item["送料_USD"]
+                })
+            
+            st.session_state.research_results = pd.DataFrame(display_data)
+    
+    # Display results table
+    if not st.session_state.research_results.empty:
+        st.subheader(f"検索結果 ({len(st.session_state.research_results)}件)")
+        
+        # Configure column types for data editor
+        column_config = {
+            "チェック": st.column_config.CheckboxColumn(
+                "チェック",
+                help="選択する商品にチェックを入れてください",
+                default=False,
+            ),
+            "タイトル": st.column_config.TextColumn(
+                "タイトル",
+                help="商品タイトル",
+                max_chars=50,
+            ),
+            "価格": st.column_config.TextColumn(
+                "価格",
+                help="販売価格（USD / 円換算）",
+            ),
+            "送料": st.column_config.TextColumn(
+                "送料", 
+                help="送料（USD / 円換算）",
+            ),
+            "売れた日": st.column_config.DateColumn(
+                "売れた日",
+                help="商品が売れた日付",
+            ),
+            "商品状態": st.column_config.TextColumn(
+                "商品状態",
+                help="商品の状態",
+            ),
+            "出品者": st.column_config.TextColumn(
+                "出品者",
+                help="出品者情報（評価数含む）",
+            ),
+            "仕入れ値入力": st.column_config.NumberColumn(
+                "仕入れ値入力 (円)",
+                help="仕入れ値を円で入力してください",
+                min_value=0,
+                max_value=1000000,
+                step=100,
+                format="¥%d",
+            ),
+            "利益額": st.column_config.NumberColumn(
+                "利益額 (円)",
+                help="計算された利益額",
+                format="¥%.0f",
+                disabled=True,
+            ),
+            "利益率": st.column_config.NumberColumn(
+                "利益率 (%)",
+                help="計算された利益率",
+                format="%.1f%%",
+                disabled=True,
+            ),
+            "_価格_USD": None,  # Hidden columns
+            "_送料_USD": None,
+        }
+        
+        # Display editable dataframe
+        edited_df = st.data_editor(
+            st.session_state.research_results,
+            column_config=column_config,
+            use_container_width=True,
+            num_rows="fixed",
+            disabled=["タイトル", "価格", "送料", "売れた日", "商品状態", "出品者", "利益額", "利益率"],
+            hide_index=True,
+            key="research_editor"
+        )
+        
+        # Calculate profits dynamically
+        for idx, row in edited_df.iterrows():
+            if row["仕入れ値入力"] > 0:
+                profit, margin = calculate_research_profit(
+                    row["_価格_USD"], 
+                    row["_送料_USD"],
+                    row["仕入れ値入力"], 
+                    st.session_state.exchange_rate
+                )
+                edited_df.at[idx, "利益額"] = profit
+                edited_df.at[idx, "利益率"] = margin
+        
+        # Update session state
+        st.session_state.research_results = edited_df
+        
+        # Action buttons
+        st.subheader("アクション")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("📥 CSVダウンロード", help="選択した商品のみをCSVでダウンロード"):
+                selected_rows = edited_df[edited_df["チェック"] == True]
+                if not selected_rows.empty:
+                    # Prepare CSV data (exclude hidden columns and checkbox)
+                    csv_data = selected_rows.drop(columns=["チェック", "_価格_USD", "_送料_USD"])
+                    
+                    # Convert to CSV
+                    csv_buffer = io.StringIO()
+                    csv_data.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
+                    csv_string = csv_buffer.getvalue()
+                    
+                    # Create download button
+                    b64 = base64.b64encode(csv_string.encode('utf-8-sig')).decode()
+                    href = f'<a href="data:file/csv;base64,{b64}" download="ebay_research_{datetime.now().strftime("%Y%m%d_%H%M")}.csv">CSVをダウンロード</a>'
+                    st.markdown(href, unsafe_allow_html=True)
+                    
+                    st.success(f"✅ {len(selected_rows)}件の商品データを準備しました")
+                else:
+                    st.warning("⚠️ 商品を選択してください")
+        
+        with col2:
+            if st.button("💾 選択商品を下書き保存", help="選択した商品を下書きとして保存（モック機能）"):
+                selected_rows = edited_df[edited_df["チェック"] == True]
+                if not selected_rows.empty:
+                    st.success(f"✅ {len(selected_rows)}件の商品を下書きに保存しました")
+                    
+                    # Display selected items for debugging
+                    with st.expander("保存された商品一覧"):
+                        for idx, row in selected_rows.iterrows():
+                            st.write(f"**{row['タイトル']}**")
+                            st.write(f"- 価格: {row['価格']}")
+                            st.write(f"- 仕入れ値: ¥{row['仕入れ値入力']:,}")
+                            st.write(f"- 予想利益: ¥{row['利益額']:,.0f} ({row['利益率']:.1f}%)")
+                            st.write("---")
+                else:
+                    st.warning("⚠️ 商品を選択してください")
+    
+    else:
+        st.info("🔍 キーワードを入力して検索ボタンを押してください")
     
     # Sidebar with shipping rates
     with st.sidebar:
