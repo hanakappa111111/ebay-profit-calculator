@@ -791,7 +791,7 @@ def profit_calculator_tab():
         )
         
         # Clear history button
-        if st.button("🗑️ 履歴をクリア"):
+        if st.button("🗑️ 履歴をクリア", key="clear_history_btn"):
             st.session_state.results_df = pd.DataFrame(columns=[
                 '商品ID', '商品タイトル', 'eBay販売価格 (USD)', '仕入価格 (JPY)', 
                 '配送方法', '送料 (JPY)', 'eBay手数料 (USD)', 
@@ -820,11 +820,11 @@ def research_tab():
     # Search section
     col1, col2 = st.columns([3, 1])
     with col1:
-        keyword = st.text_input("キーワードを入力", placeholder="例: Nintendo Switch, iPhone, Canon")
+        keyword = st.text_input("キーワードを入力", placeholder="例: Nintendo Switch, iPhone, Canon", key="research_keyword_input")
     with col2:
         st.write("")
         st.write("")
-        search_button = st.button("🔍 検索", type="primary")
+        search_button = st.button("🔍 検索", type="primary", key="research_search_btn")
     
     # API test button
     col_test1, col_test2 = st.columns([1, 1])
@@ -1214,11 +1214,12 @@ def research_and_draft_tab():
         keyword = st.text_input(
             "検索キーワード",
             placeholder="例: Nintendo, iPhone, Camera",
-            help="商品名、カテゴリなどで検索できます"
+            help="商品名、カテゴリなどで検索できます",
+            key="draft_keyword_input"
         )
     
     with col2:
-        if st.button("🔍 検索", type="primary"):
+        if st.button("🔍 検索", type="primary", key="draft_search_btn"):
             if keyword.strip():
                 st.session_state.search_results = search_mock_items(keyword)
                 st.session_state.search_keyword = keyword
@@ -1287,7 +1288,7 @@ def research_and_draft_tab():
             st.metric("選択中", f"{selected_count}件")
         
         with col2:
-            if st.button("📋 下書きに保存", disabled=selected_count == 0):
+            if st.button("📋 下書きに保存", disabled=selected_count == 0, key="save_drafts_btn"):
                 # Get selected items
                 selected_indices = edited_df[edited_df["選択"] == True]["_item_index"].tolist()
                 selected_items = [st.session_state.search_results[i] for i in selected_indices]
@@ -1355,18 +1356,19 @@ def my_drafts_tab():
     
     with col1:
         categories = ["全て"] + sorted(drafts_df["Category"].unique().tolist())
-        selected_category = st.selectbox("カテゴリフィルタ", categories)
+        selected_category = st.selectbox("カテゴリフィルタ", categories, key="drafts_category_filter")
     
     with col2:
         conditions = ["全て"] + sorted(drafts_df["Condition"].unique().tolist())
-        selected_condition = st.selectbox("状態フィルタ", conditions)
+        selected_condition = st.selectbox("状態フィルタ", conditions, key="drafts_condition_filter")
     
     with col3:
         price_range = st.slider(
             "価格範囲 (JPY)",
             min_value=int(drafts_df["Price JPY"].min()),
             max_value=int(drafts_df["Price JPY"].max()),
-            value=(int(drafts_df["Price JPY"].min()), int(drafts_df["Price JPY"].max()))
+            value=(int(drafts_df["Price JPY"].min()), int(drafts_df["Price JPY"].max())),
+            key="drafts_price_range_slider"
         )
     
     # Apply filters
@@ -1428,7 +1430,7 @@ def my_drafts_tab():
     col1, col2 = st.columns(2)
     
     with col1:
-        if st.button("📄 全データCSVエクスポート"):
+        if st.button("📄 全データCSVエクスポート", key="export_all_drafts_btn"):
             csv_buffer = io.StringIO()
             filtered_df.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
             csv_string = csv_buffer.getvalue()
@@ -1439,7 +1441,7 @@ def my_drafts_tab():
             st.success("✅ CSVエクスポート準備完了")
     
     with col2:
-        if st.button("🗑️ 古いファイルを削除"):
+        if st.button("🗑️ 古いファイルを削除", key="delete_old_files_btn"):
             drafts_dir = Path("drafts")
             if drafts_dir.exists():
                 csv_files = list(drafts_dir.glob("drafts_*.csv"))
