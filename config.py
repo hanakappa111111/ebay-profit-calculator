@@ -6,10 +6,17 @@ from typing import Dict
 
 # eBay API Configuration
 EBAY_CONFIG = {
-    'app_id': os.getenv('EBAY_APP_ID', 'your_app_id_here'),
-    'dev_id': os.getenv('EBAY_DEV_ID', 'your_dev_id_here'),
-    'cert_id': os.getenv('EBAY_CERT_ID', 'your_cert_id_here'),
-    'environment': os.getenv('EBAY_ENV', 'sandbox'),  # 'sandbox' or 'production'
+    # 取得したAPIキーをここに直接入力してください
+    'app_id': 'yutoshim-expo-PRD-d0bcabe10-2e8e826e',        # ← eBay App IDを入力
+    'dev_id': 'e6c0a905-4310-4f88-b15a-9e31261d5f8f',        # ← eBay Dev IDを入力
+    'cert_id': 'PRD-0bcabe10ba44-f54c-45e4-bc5f-be9f',      # ← eBay Cert IDを入力
+    'environment': 'production',  # テスト用は'sandbox'、本番用は'production'
+    
+    # 環境変数からも読み込み可能（オプション）
+    # 'app_id': os.getenv('EBAY_APP_ID', 'your_actual_app_id_here'),
+    # 'dev_id': os.getenv('EBAY_DEV_ID', 'your_actual_dev_id_here'),
+    # 'cert_id': os.getenv('EBAY_CERT_ID', 'your_actual_cert_id_here'),
+    # 'environment': os.getenv('EBAY_ENV', 'sandbox'),
 }
 
 # Currency Configuration

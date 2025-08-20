@@ -166,8 +166,15 @@ def ebay_search_real(keyword: str) -> List[Dict]:
         return MOCK_SEARCH_DATA
     
     try:
-        # Use existing eBay API for search (this would require actual eBay API implementation)
-        # For now, we'll simulate with enhanced mock data based on keyword
+        # Try real eBay API search first
+        real_results = ebay_api.search_items(keyword, limit=15)
+        
+        if real_results:
+            st.success(f"✅ 実際のeBayデータを{len(real_results)}件取得しました！")
+            return real_results
+        
+        # Fallback to enhanced mock data if API fails
+        st.warning("⚠️ eBay APIからデータを取得できませんでした。拡張モックデータを表示します。")
         enhanced_results = []
         
         # Add more realistic mock data based on common keywords
@@ -590,7 +597,7 @@ def research_tab():
     💡 **検索のコツ**: 「Nintendo」「iPhone」「Canon」「Sony」「LEGO」などのキーワードを試してください
     💡 **為替レート**: USD→JPY変換は最新レートを自動取得します
     
-    ⚠️ **現在はデモ版**: 実際のeBay APIが設定されていないため、キーワードに対応した拡張モックデータを表示しています
+    🚀 **リアルデータ対応**: eBay Finding APIを使用して実際の商品データを取得します！
     """)
     
     # Search section

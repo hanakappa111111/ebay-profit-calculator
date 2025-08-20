@@ -3,7 +3,7 @@ eBay API integration module for fetching item details
 """
 import requests
 import re
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 from bs4 import BeautifulSoup
 import json
 import time
@@ -629,6 +629,120 @@ class eBayAPI:
             item_data['fee_rate'] = get_fee_rate(item_data.get('category_id'))
         
         return item_data
+    
+    def search_items(self, keyword: str, limit: int = 20) -> List[Dict]:
+        """Search for items using eBay Finding API"""
+        try:
+            if self.config['app_id'] == 'your_actual_app_id_here':
+                return []  # No valid API credentials
+            
+            # eBay Finding API endpoint
+            finding_api_url = "https://svcs.ebay.com/services/search/FindingService/v1"
+            
+            # API parameters
+            params = {
+                'OPERATION-NAME': 'findItemsByKeywords',
+                'SERVICE-VERSION': '1.0.0',
+                'SECURITY-APPNAME': self.config['app_id'],
+                'RESPONSE-DATA-FORMAT': 'JSON',
+                'REST-PAYLOAD': '',
+                'keywords': keyword,
+                'paginationInput.entriesPerPage': str(limit),
+                'sortOrder': 'EndTimeSoonest',
+                'itemFilter(0).name': 'ListingType',
+                'itemFilter(0).value': 'FixedPrice',
+                'itemFilter(1).name': 'Condition',
+                'itemFilter(1).value': 'Used',
+                'itemFilter(2).name': 'Condition',
+                'itemFilter(2).value': 'New',
+                'itemFilter(3).name': 'MinPrice',
+                'itemFilter(3).value': '10',
+                'itemFilter(4).name': 'MaxPrice',
+                'itemFilter(4).value': '5000'
+            }
+            
+            response = self.session.get(finding_api_url, params=params, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                return self._parse_search_results(data)
+            else:
+                print(f"Finding API Error: {response.status_code}")
+                return []
+                
+        except Exception as e:
+            print(f"Search error: {e}")
+            return []
+    
+    def _parse_search_results(self, data: Dict) -> List[Dict]:
+        """Parse eBay Finding API search results"""
+        results = []
+        
+        try:
+            search_result = data.get('findItemsByKeywordsResponse', [{}])[0]
+            items = search_result.get('searchResult', [{}])[0].get('item', [])
+            
+            for item in items:
+                try:
+                    # Extract item details
+                    title = item.get('title', [''])[0] if item.get('title') else ''
+                    item_id = item.get('itemId', [''])[0] if item.get('itemId') else ''
+                    
+                    # Price information
+                    selling_status = item.get('sellingStatus', [{}])[0]
+                    current_price = selling_status.get('currentPrice', [{}])[0]
+                    price = float(current_price.get('__value__', '0')) if current_price else 0.0
+                    
+                    # Shipping cost
+                    shipping_info = item.get('shippingInfo', [{}])[0]
+                    shipping_cost = shipping_info.get('shippingServiceCost', [{}])[0]
+                    shipping_price = float(shipping_cost.get('__value__', '0')) if shipping_cost else 0.0
+                    
+                    # End time (sold date)
+                    end_time = item.get('listingInfo', [{}])[0].get('endTime', [''])[0]
+                    if end_time:
+                        # Convert to simple date format
+                        from datetime import datetime
+                        try:
+                            dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+                            sold_date = dt.strftime('%Y-%m-%d')
+                        except:
+                            sold_date = end_time[:10]  # Take first 10 chars as fallback
+                    else:
+                        sold_date = '2025-01-01'
+                    
+                    # Condition
+                    condition = item.get('condition', [{}])[0].get('conditionDisplayName', ['Used'])[0] if item.get('condition') else 'Used'
+                    
+                    # Seller info
+                    seller_info = item.get('sellerInfo', [{}])[0]
+                    seller_name = seller_info.get('sellerUserName', ['Unknown'])[0] if seller_info else 'Unknown'
+                    feedback_score = seller_info.get('feedbackScore', ['0'])[0] if seller_info else '0'
+                    
+                    # Skip items with very low prices (likely invalid)
+                    if price < 1.0:
+                        continue
+                    
+                    result_item = {
+                        'タイトル': title[:50] + '...' if len(title) > 50 else title,  # Truncate long titles
+                        '価格_USD': price,
+                        '送料_USD': shipping_price,
+                        '売れた日': sold_date,
+                        '商品状態': condition,
+                        '出品者': f"{seller_name} (評価 {feedback_score})",
+                        'item_id': item_id
+                    }
+                    
+                    results.append(result_item)
+                    
+                except Exception as item_error:
+                    print(f"Error parsing item: {item_error}")
+                    continue
+            
+        except Exception as e:
+            print(f"Error parsing search results: {e}")
+        
+        return results
     
     def _get_test_data(self) -> Dict:
         """Return test data for debugging purposes"""
