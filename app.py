@@ -126,7 +126,10 @@ MOCK_SEARCH_DATA = [
         "送料_USD": 20,
         "売れた日": "2025-01-15",
         "商品状態": "中古 - 良い",
-        "出品者": "seller123 (評価 1520)"
+        "出品者": "seller123 (評価 1520)",
+        "item_id": "123456789001",
+        "image_url": "",
+        "ebay_url": "https://www.ebay.com/sch/i.html?_nkw=Nintendo+Switch+console"
     },
     {
         "タイトル": "Apple iPhone 13 Pro 256GB ゴールド",
@@ -134,7 +137,10 @@ MOCK_SEARCH_DATA = [
         "送料_USD": 25,
         "売れた日": "2025-01-18",
         "商品状態": "中古 - 非常に良い",
-        "出品者": "best_seller (評価 3210)"
+        "出品者": "best_seller (評価 3210)",
+        "item_id": "123456789002",
+        "image_url": "",
+        "ebay_url": "https://www.ebay.com/sch/i.html?_nkw=iPhone+13+Pro+256GB"
     },
     {
         "タイトル": "SONY WH-1000XM5 ヘッドホン",
@@ -142,7 +148,10 @@ MOCK_SEARCH_DATA = [
         "送料_USD": 15,
         "売れた日": "2025-01-20",
         "商品状態": "新品同様",
-        "出品者": "sound_japan (評価 985)"
+        "出品者": "sound_japan (評価 985)",
+        "item_id": "123456789003",
+        "image_url": "",
+        "ebay_url": "https://www.ebay.com/sch/i.html?_nkw=Sony+WH-1000XM5"
     },
     {
         "タイトル": "LEGO スターウォーズ ミレニアムファルコン",
@@ -150,7 +159,10 @@ MOCK_SEARCH_DATA = [
         "送料_USD": 30,
         "売れた日": "2025-01-22",
         "商品状態": "中古 - 可",
-        "出品者": "lego_master (評価 422)"
+        "出品者": "lego_master (評価 422)",
+        "item_id": "123456789004",
+        "image_url": "",
+        "ebay_url": "https://www.ebay.com/sch/i.html?_nkw=LEGO+Star+Wars+Millennium+Falcon"
     },
     {
         "タイトル": "Canon EOS R6 Mark II ボディ",
@@ -158,7 +170,10 @@ MOCK_SEARCH_DATA = [
         "送料_USD": 40,
         "売れた日": "2025-01-25",
         "商品状態": "新品",
-        "出品者": "camera_pro (評価 5210)"
+        "出品者": "camera_pro (評価 5210)",
+        "item_id": "123456789005",
+        "image_url": "",
+        "ebay_url": "https://www.ebay.com/sch/i.html?_nkw=Canon+EOS+R6+Mark+II"
     }
 ]
 
@@ -205,37 +220,37 @@ def ebay_search_real(keyword: str) -> List[Dict]:
         
         if 'nintendo' in keyword_lower or 'switch' in keyword_lower:
             enhanced_results.extend([
-                {"タイトル": "Nintendo Switch OLED モデル ホワイト", "価格_USD": 280, "送料_USD": 25, "売れた日": "2025-01-26", "商品状態": "新品", "出品者": "game_seller (評価 2100)"},
-                {"タイトル": "Nintendo Switch Lite ターコイズ", "価格_USD": 180, "送料_USD": 20, "売れた日": "2025-01-25", "商品状態": "中古 - 良い", "出品者": "retro_games (評価 890)"},
-                {"タイトル": "Nintendo Switch Pro コントローラー", "価格_USD": 65, "送料_USD": 15, "売れた日": "2025-01-24", "商品状態": "新品同様", "出品者": "controller_shop (評価 1450)"}
+                {"タイトル": "Nintendo Switch OLED モデル ホワイト", "価格_USD": 280, "送料_USD": 25, "売れた日": "2025-01-26", "商品状態": "新品", "出品者": "game_seller (評価 2100)", "item_id": "nintendo1", "image_url": "", "ebay_url": "https://www.ebay.com/sch/i.html?_nkw=Nintendo+Switch+OLED"},
+                {"タイトル": "Nintendo Switch Lite ターコイズ", "価格_USD": 180, "送料_USD": 20, "売れた日": "2025-01-25", "商品状態": "中古 - 良い", "出品者": "retro_games (評価 890)", "item_id": "nintendo2", "image_url": "", "ebay_url": "https://www.ebay.com/sch/i.html?_nkw=Nintendo+Switch+Lite"},
+                {"タイトル": "Nintendo Switch Pro コントローラー", "価格_USD": 65, "送料_USD": 15, "売れた日": "2025-01-24", "商品状態": "新品同様", "出品者": "controller_shop (評価 1450)", "item_id": "nintendo3", "image_url": "", "ebay_url": "https://www.ebay.com/sch/i.html?_nkw=Nintendo+Switch+Pro+Controller"}
             ])
         
         if 'iphone' in keyword_lower or 'apple' in keyword_lower:
             enhanced_results.extend([
-                {"タイトル": "iPhone 14 Pro Max 128GB ディープパープル", "価格_USD": 850, "送料_USD": 30, "売れた日": "2025-01-26", "商品状態": "新品", "出品者": "apple_store_jp (評価 5500)"},
-                {"タイトル": "iPhone 13 mini 256GB ピンク", "価格_USD": 480, "送料_USD": 25, "売れた日": "2025-01-25", "商品状態": "中古 - 非常に良い", "出品者": "phone_expert (評価 3200)"},
-                {"タイトル": "iPhone 12 64GB ブラック", "価格_USD": 320, "送料_USD": 20, "売れた日": "2025-01-24", "商品状態": "中古 - 良い", "出品者": "mobile_reseller (評価 1800)"}
+                {"タイトル": "iPhone 14 Pro Max 128GB ディープパープル", "価格_USD": 850, "送料_USD": 30, "売れた日": "2025-01-26", "商品状態": "新品", "出品者": "apple_store_jp (評価 5500)", "item_id": "iphone1", "image_url": "", "ebay_url": "https://www.ebay.com/sch/i.html?_nkw=iPhone+14+Pro+Max"},
+                {"タイトル": "iPhone 13 mini 256GB ピンク", "価格_USD": 480, "送料_USD": 25, "売れた日": "2025-01-25", "商品状態": "中古 - 非常に良い", "出品者": "phone_expert (評価 3200)", "item_id": "iphone2", "image_url": "", "ebay_url": "https://www.ebay.com/sch/i.html?_nkw=iPhone+13+mini"},
+                {"タイトル": "iPhone 12 64GB ブラック", "価格_USD": 320, "送料_USD": 20, "売れた日": "2025-01-24", "商品状態": "中古 - 良い", "出品者": "mobile_reseller (評価 1800)", "item_id": "iphone3", "image_url": "", "ebay_url": "https://www.ebay.com/sch/i.html?_nkw=iPhone+12"}
             ])
         
         if 'sony' in keyword_lower or 'headphone' in keyword_lower:
             enhanced_results.extend([
-                {"タイトル": "Sony WH-1000XM4 ワイヤレスヘッドホン ブラック", "価格_USD": 250, "送料_USD": 20, "売れた日": "2025-01-26", "商品状態": "中古 - 良い", "出品者": "audio_pro (評価 2800)"},
-                {"タイトル": "Sony WF-1000XM4 完全ワイヤレスイヤホン", "価格_USD": 180, "送料_USD": 15, "売れた日": "2025-01-25", "商品状態": "新品同様", "出品者": "earphone_master (評価 1200)"},
-                {"タイトル": "Sony α7 III ミラーレス一眼カメラ ボディ", "価格_USD": 1500, "送料_USD": 45, "売れた日": "2025-01-24", "商品状態": "中古 - 非常に良い", "出品者": "camera_world (評価 4200)"}
+                {"タイトル": "Sony WH-1000XM4 ワイヤレスヘッドホン ブラック", "価格_USD": 250, "送料_USD": 20, "売れた日": "2025-01-26", "商品状態": "中古 - 良い", "出品者": "audio_pro (評価 2800)", "item_id": "sony1", "image_url": "", "ebay_url": "https://www.ebay.com/sch/i.html?_nkw=Sony+WH-1000XM4"},
+                {"タイトル": "Sony WF-1000XM4 完全ワイヤレスイヤホン", "価格_USD": 180, "送料_USD": 15, "売れた日": "2025-01-25", "商品状態": "新品同様", "出品者": "earphone_master (評価 1200)", "item_id": "sony2", "image_url": "", "ebay_url": "https://www.ebay.com/sch/i.html?_nkw=Sony+WF-1000XM4"},
+                {"タイトル": "Sony α7 III ミラーレス一眼カメラ ボディ", "価格_USD": 1500, "送料_USD": 45, "売れた日": "2025-01-24", "商品状態": "中古 - 非常に良い", "出品者": "camera_world (評価 4200)", "item_id": "sony3", "image_url": "", "ebay_url": "https://www.ebay.com/sch/i.html?_nkw=Sony+A7+III"}
             ])
         
         if 'canon' in keyword_lower or 'camera' in keyword_lower:
             enhanced_results.extend([
-                {"タイトル": "Canon EOS R5 ミラーレス一眼 ボディ", "価格_USD": 2800, "送料_USD": 50, "売れた日": "2025-01-26", "商品状態": "新品", "出品者": "photo_gear (評価 6100)"},
-                {"タイトル": "Canon EF 24-70mm f/2.8L II USM レンズ", "価格_USD": 1200, "送料_USD": 35, "売れた日": "2025-01-25", "商品状態": "中古 - 良い", "出品者": "lens_specialist (評価 3400)"},
-                {"タイトル": "Canon PowerShot G7X Mark III コンパクトデジカメ", "価格_USD": 450, "送料_USD": 25, "売れた日": "2025-01-24", "商品状態": "新品同様", "出品者": "compact_cam (評価 1900)"}
+                {"タイトル": "Canon EOS R5 ミラーレス一眼 ボディ", "価格_USD": 2800, "送料_USD": 50, "売れた日": "2025-01-26", "商品状態": "新品", "出品者": "photo_gear (評価 6100)", "item_id": "canon1", "image_url": "", "ebay_url": "https://www.ebay.com/sch/i.html?_nkw=Canon+EOS+R5"},
+                {"タイトル": "Canon EF 24-70mm f/2.8L II USM レンズ", "価格_USD": 1200, "送料_USD": 35, "売れた日": "2025-01-25", "商品状態": "中古 - 良い", "出品者": "lens_specialist (評価 3400)", "item_id": "canon2", "image_url": "", "ebay_url": "https://www.ebay.com/sch/i.html?_nkw=Canon+EF+24-70mm"},
+                {"タイトル": "Canon PowerShot G7X Mark III コンパクトデジカメ", "価格_USD": 450, "送料_USD": 25, "売れた日": "2025-01-24", "商品状態": "新品同様", "出品者": "compact_cam (評価 1900)", "item_id": "canon3", "image_url": "", "ebay_url": "https://www.ebay.com/sch/i.html?_nkw=Canon+PowerShot+G7X"}
             ])
         
         if 'lego' in keyword_lower:
             enhanced_results.extend([
-                {"タイトル": "LEGO Creator Expert 10264 コーナーガレージ", "価格_USD": 180, "送料_USD": 35, "売れた日": "2025-01-26", "商品状態": "新品", "出品者": "brick_builder (評価 2500)"},
-                {"タイトル": "LEGO テクニック 42115 ランボルギーニ", "価格_USD": 320, "送料_USD": 40, "売れた日": "2025-01-25", "商品状態": "新品同様", "出品者": "technic_fan (評価 1600)"},
-                {"タイトル": "LEGO ハリーポッター 76391 ホグワーツ城", "価格_USD": 380, "送料_USD": 45, "売れた日": "2025-01-24", "商品状態": "中古 - 良い", "出品者": "wizard_bricks (評価 980)"}
+                {"タイトル": "LEGO Creator Expert 10264 コーナーガレージ", "価格_USD": 180, "送料_USD": 35, "売れた日": "2025-01-26", "商品状態": "新品", "出品者": "brick_builder (評価 2500)", "item_id": "lego1", "image_url": "", "ebay_url": "https://www.ebay.com/sch/i.html?_nkw=LEGO+Creator+Expert"},
+                {"タイトル": "LEGO テクニック 42115 ランボルギーニ", "価格_USD": 320, "送料_USD": 40, "売れた日": "2025-01-25", "商品状態": "新品同様", "出品者": "technic_fan (評価 1600)", "item_id": "lego2", "image_url": "", "ebay_url": "https://www.ebay.com/sch/i.html?_nkw=LEGO+Technic+Lamborghini"},
+                {"タイトル": "LEGO ハリーポッター 76391 ホグワーツ城", "価格_USD": 380, "送料_USD": 45, "売れた日": "2025-01-24", "商品状態": "中古 - 良い", "出品者": "wizard_bricks (評価 980)", "item_id": "lego3", "image_url": "", "ebay_url": "https://www.ebay.com/sch/i.html?_nkw=LEGO+Harry+Potter+Hogwarts"}
             ])
         
         # If no specific keyword matches, return original mock data
@@ -717,106 +732,63 @@ def research_tab():
     
     # Display results table
     if not st.session_state.research_results.empty:
-        st.subheader(f"検索結果 ({len(st.session_state.research_results)}件)")
+        st.subheader(f"🔍 検索結果 ({len(st.session_state.research_results)}件)")
         
-        # Create custom HTML table for better display of images and links
-        st.markdown("### 🛍️ 商品一覧（画像・リンク付き）")
+        # Create a clean display dataframe with clickable links
+        display_df = st.session_state.research_results.copy()
         
-        # Create HTML table with images and links
-        html_table = """
-        <style>
-        .product-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-        }
-        .product-table th, .product-table td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-            vertical-align: middle;
-        }
-        .product-table th {
-            background-color: #f2f2f2;
-            font-weight: bold;
-        }
-        .product-img {
-            width: 50px;
-            height: 50px;
-            object-fit: cover;
-            border-radius: 4px;
-            border: 1px solid #ccc;
-        }
-        .product-title {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .product-link {
-            text-decoration: none;
-            color: #1f77b4;
-            font-weight: 500;
-        }
-        .product-link:hover {
-            text-decoration: underline;
-        }
-        </style>
-        <table class="product-table">
-            <thead>
-                <tr>
-                    <th>選択</th>
-                    <th>商品</th>
-                    <th>価格</th>
-                    <th>送料</th>
-                    <th>売れた日</th>
-                    <th>状態</th>
-                    <th>出品者</th>
-                </tr>
-            </thead>
-            <tbody>
-        """
+        # Create clickable title links for items that have eBay URLs
+        def create_clickable_title(row):
+            title = str(row["タイトル"])[:60] + ('...' if len(str(row["タイトル"])) > 60 else '')
+            if row.get('_ebay_url') and row['_ebay_url'] != '':
+                return f"[{title}]({row['_ebay_url']})"
+            else:
+                return title
         
-        # Add rows for each product
-        for idx, row in st.session_state.research_results.iterrows():
-            # Create image element
-            img_element = ""
-            if row.get('_image_url'):
-                img_element = f'<img src="{row["_image_url"]}" alt="商品画像" class="product-img">'
-            
-            # Create title with link
-            title_element = row["タイトル"][:60] + ('...' if len(str(row["タイトル"])) > 60 else '')
-            if row.get('_ebay_url'):
-                title_element = f'<a href="{row["_ebay_url"]}" target="_blank" class="product-link">{title_element}</a>'
-            
-            html_table += f"""
-                <tr>
-                    <td><input type="checkbox" id="item_{idx}"></td>
-                    <td>
-                        <div class="product-title">
-                            {img_element}
-                            <div>{title_element}</div>
-                        </div>
-                    </td>
-                    <td>{row["価格"]}</td>
-                    <td>{row["送料"]}</td>
-                    <td>{row["売れた日"]}</td>
-                    <td>{row["商品状態"]}</td>
-                    <td>{row["出品者"]}</td>
-                </tr>
-            """
+        display_df["商品タイトル"] = display_df.apply(create_clickable_title, axis=1)
         
-        html_table += """
-            </tbody>
-        </table>
-        """
+        # Create a clean display version without hidden columns
+        clean_df = display_df[["商品タイトル", "価格", "送料", "売れた日", "商品状態", "出品者"]].copy()
         
-        # Display HTML table
-        st.markdown(html_table, unsafe_allow_html=True)
+        # Display the product list as a standard dataframe
+        st.markdown("### 🛍️ 商品一覧")
+        st.dataframe(
+            clean_df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "商品タイトル": st.column_config.LinkColumn(
+                    "商品タイトル",
+                    help="商品名（クリックでeBayページへ）",
+                    width="large"
+                ),
+                "価格": st.column_config.TextColumn(
+                    "価格",
+                    help="販売価格（USD / 円換算）",
+                ),
+                "送料": st.column_config.TextColumn(
+                    "送料",
+                    help="送料（USD / 円換算）",
+                ),
+                "売れた日": st.column_config.DateColumn(
+                    "売れた日",
+                    help="商品が売れた日付",
+                ),
+                "商品状態": st.column_config.TextColumn(
+                    "商品状態",
+                    help="商品の状態",
+                ),
+                "出品者": st.column_config.TextColumn(
+                    "出品者",
+                    help="出品者情報（評価数含む）",
+                ),
+            }
+        )
         
-        # Add data editor for profit calculations
-        st.markdown("### 💰 利益計算")
+        # Add profit calculation section
+        st.markdown("### 💰 利益計算・選択")
         
-        # Configure column types for data editor (simplified for calculations)
+        # Configure column types for data editor
         column_config = {
             "チェック": st.column_config.CheckboxColumn(
                 "選択",
@@ -856,10 +828,6 @@ def research_tab():
             "_送料_USD": None,
             "_image_url": None,
             "_ebay_url": None,
-            "送料": None,
-            "売れた日": None,
-            "商品状態": None,
-            "出品者": None,
         }
         
         # Create simplified dataframe for calculations
