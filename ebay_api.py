@@ -17,6 +17,7 @@ class eBayAPI:
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         })
         self.last_debug_info = {}
+        self.access_token = None
     
     def extract_item_id(self, url_or_id: str) -> Optional[str]:
         """Extract eBay item ID from URL or return the ID if already provided"""
@@ -630,48 +631,200 @@ class eBayAPI:
         
         return item_data
     
+    def get_oauth_token(self) -> Optional[str]:
+        """Get OAuth access token for eBay API"""
+        try:
+            # eBay OAuth endpoint
+            oauth_url = "https://api.ebay.com/identity/v1/oauth2/token"
+            
+            # Prepare credentials
+            import base64
+            credentials = f"{self.config['app_id']}:{self.config['cert_id']}"
+            encoded_credentials = base64.b64encode(credentials.encode()).decode()
+            
+            headers = {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Authorization': f'Basic {encoded_credentials}'
+            }
+            
+            data = {
+                'grant_type': 'client_credentials',
+                'scope': 'https://api.ebay.com/oauth/api_scope'
+            }
+            
+            response = self.session.post(oauth_url, headers=headers, data=data, timeout=10)
+            
+            if response.status_code == 200:
+                token_data = response.json()
+                self.access_token = token_data.get('access_token')
+                return self.access_token
+            else:
+                self.last_debug_info['oauth_error'] = {
+                    'status_code': response.status_code,
+                    'response': response.text[:300]
+                }
+                return None
+                
+        except Exception as e:
+            self.last_debug_info['oauth_exception'] = str(e)
+            return None
+    
+    def test_api_connection(self) -> Dict:
+        """Test eBay API connection and credentials"""
+        test_result = {
+            'config_valid': False,
+            'oauth_token': False,
+            'finding_api': False,
+            'errors': []
+        }
+        
+        # Check config
+        if (self.config['app_id'] != 'your_actual_app_id_here' and 
+            self.config['cert_id'] != 'your_actual_cert_id_here'):
+            test_result['config_valid'] = True
+        else:
+            test_result['errors'].append('API credentials not configured')
+        
+        # Test OAuth
+        if test_result['config_valid']:
+            token = self.get_oauth_token()
+            if token:
+                test_result['oauth_token'] = True
+            else:
+                test_result['errors'].append('OAuth token acquisition failed')
+        
+        return test_result
+    
     def search_items(self, keyword: str, limit: int = 20) -> List[Dict]:
-        """Search for items using eBay Finding API"""
+        """Search for items using eBay Browse API (newer, OAuth-based)"""
         try:
             if self.config['app_id'] == 'your_actual_app_id_here':
-                return []  # No valid API credentials
+                self.last_debug_info = {'error': 'No valid API credentials configured'}
+                return []
             
-            # eBay Finding API endpoint
+            # Get OAuth token first
+            if not self.access_token:
+                token = self.get_oauth_token()
+                if not token:
+                    self.last_debug_info['error'] = 'Failed to obtain OAuth token'
+                    return []
+            
+            # Try eBay Browse API (newer)
+            browse_api_url = "https://api.ebay.com/buy/browse/v1/item_summary/search"
+            
+            headers = {
+                'Authorization': f'Bearer {self.access_token}',
+                'Content-Type': 'application/json',
+                'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US'
+            }
+            
+            params = {
+                'q': keyword,
+                'limit': str(min(limit, 20)),
+                'sort': 'price',
+                'filter': 'price:[5..10000],priceCurrency:USD,itemLocationCountry:US'
+            }
+            
+            self.last_debug_info = {
+                'api_type': 'Browse API',
+                'api_url': browse_api_url,
+                'keyword': keyword,
+                'has_token': bool(self.access_token),
+                'token_preview': self.access_token[:20] + '...' if self.access_token else None
+            }
+            
+            response = self.session.get(browse_api_url, headers=headers, params=params, timeout=15)
+            
+            self.last_debug_info.update({
+                'response_status': response.status_code,
+                'response_length': len(response.content)
+            })
+            
+            if response.status_code == 200:
+                try:
+                    data = response.json()
+                    results = self._parse_browse_results(data)
+                    self.last_debug_info['results_count'] = len(results)
+                    return results
+                except json.JSONDecodeError as e:
+                    self.last_debug_info['json_error'] = str(e)
+                    return []
+            else:
+                # Fallback to Finding API (legacy)
+                return self._search_with_finding_api(keyword, limit)
+                
+        except Exception as e:
+            self.last_debug_info = {'exception': str(e), 'exception_type': type(e).__name__}
+            return []
+    
+    def _search_with_finding_api(self, keyword: str, limit: int = 20) -> List[Dict]:
+        """Fallback to Finding API (no OAuth required)"""
+        try:
+            # eBay Finding API endpoint  
             finding_api_url = "https://svcs.ebay.com/services/search/FindingService/v1"
             
-            # API parameters
+            # API parameters - simplified for better compatibility
             params = {
                 'OPERATION-NAME': 'findItemsByKeywords',
                 'SERVICE-VERSION': '1.0.0',
                 'SECURITY-APPNAME': self.config['app_id'],
                 'RESPONSE-DATA-FORMAT': 'JSON',
-                'REST-PAYLOAD': '',
                 'keywords': keyword,
-                'paginationInput.entriesPerPage': str(limit),
-                'sortOrder': 'EndTimeSoonest',
+                'paginationInput.entriesPerPage': str(min(limit, 20)),
+                'sortOrder': 'BestMatch',
                 'itemFilter(0).name': 'ListingType',
-                'itemFilter(0).value': 'FixedPrice',
-                'itemFilter(1).name': 'Condition',
-                'itemFilter(1).value': 'Used',
-                'itemFilter(2).name': 'Condition',
-                'itemFilter(2).value': 'New',
-                'itemFilter(3).name': 'MinPrice',
-                'itemFilter(3).value': '10',
-                'itemFilter(4).name': 'MaxPrice',
-                'itemFilter(4).value': '5000'
+                'itemFilter(0).value(0)': 'FixedPrice',
+                'itemFilter(1).name': 'MinPrice',
+                'itemFilter(1).value': '5',
+                'itemFilter(2).name': 'MaxPrice', 
+                'itemFilter(2).value': '10000'
             }
             
-            response = self.session.get(finding_api_url, params=params, timeout=10)
+            # Store debug info
+            self.last_debug_info = {
+                'api_type': 'Finding API (fallback)',
+                'api_url': finding_api_url,
+                'app_id_used': self.config['app_id'][:10] + '...' if len(self.config['app_id']) > 10 else self.config['app_id'],
+                'keyword': keyword,
+                'request_params': params
+            }
+            
+            response = self.session.get(finding_api_url, params=params, timeout=15)
+            
+            # Store response info
+            self.last_debug_info.update({
+                'response_status': response.status_code,
+                'response_url': str(response.url),
+                'response_length': len(response.content)
+            })
             
             if response.status_code == 200:
-                data = response.json()
-                return self._parse_search_results(data)
+                try:
+                    data = response.json()
+                    self.last_debug_info['response_json'] = True
+                    
+                    # Check for API errors in response
+                    if 'errorMessage' in str(data):
+                        self.last_debug_info['api_error'] = str(data)
+                        return []
+                    
+                    results = self._parse_search_results(data)
+                    self.last_debug_info['results_count'] = len(results)
+                    return results
+                    
+                except json.JSONDecodeError as e:
+                    self.last_debug_info['json_error'] = str(e)
+                    self.last_debug_info['response_text'] = response.text[:500]
+                    return []
             else:
-                print(f"Finding API Error: {response.status_code}")
+                self.last_debug_info['error_response'] = response.text[:500]
                 return []
                 
         except Exception as e:
-            print(f"Search error: {e}")
+            self.last_debug_info = {
+                'exception': str(e),
+                'exception_type': type(e).__name__
+            }
             return []
     
     def _parse_search_results(self, data: Dict) -> List[Dict]:
@@ -741,6 +894,60 @@ class eBayAPI:
             
         except Exception as e:
             print(f"Error parsing search results: {e}")
+        
+        return results
+    
+    def _parse_browse_results(self, data: Dict) -> List[Dict]:
+        """Parse eBay Browse API search results"""
+        results = []
+        
+        try:
+            items = data.get('itemSummaries', [])
+            
+            for item in items:
+                try:
+                    # Extract item details
+                    title = item.get('title', '')
+                    item_id = item.get('itemId', '')
+                    
+                    # Price information
+                    price_info = item.get('price', {})
+                    price = float(price_info.get('value', '0')) if price_info else 0.0
+                    
+                    # Shipping cost
+                    shipping_info = item.get('shippingOptions', [{}])[0] if item.get('shippingOptions') else {}
+                    shipping_cost_info = shipping_info.get('shippingCost', {})
+                    shipping_price = float(shipping_cost_info.get('value', '0')) if shipping_cost_info else 0.0
+                    
+                    # Condition
+                    condition = item.get('condition', 'Unknown')
+                    
+                    # Seller info
+                    seller_info = item.get('seller', {})
+                    seller_name = seller_info.get('username', 'Unknown')
+                    feedback_score = seller_info.get('feedbackScore', '0')
+                    
+                    # Skip items with very low prices
+                    if price < 1.0:
+                        continue
+                    
+                    result_item = {
+                        'タイトル': title[:50] + '...' if len(title) > 50 else title,
+                        '価格_USD': price,
+                        '送料_USD': shipping_price,
+                        '売れた日': '2025-01-26',  # Browse API doesn't provide sold dates
+                        '商品状態': condition,
+                        '出品者': f"{seller_name} (評価 {feedback_score})",
+                        'item_id': item_id
+                    }
+                    
+                    results.append(result_item)
+                    
+                except Exception as item_error:
+                    continue
+            
+        except Exception as e:
+            pass
         
         return results
     

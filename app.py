@@ -175,6 +175,12 @@ def ebay_search_real(keyword: str) -> List[Dict]:
         
         # Fallback to enhanced mock data if API fails
         st.warning("⚠️ eBay APIからデータを取得できませんでした。拡張モックデータを表示します。")
+        
+        # Show debug information
+        if hasattr(ebay_api, 'last_debug_info') and ebay_api.last_debug_info:
+            with st.expander("🔧 デバッグ情報（API接続の問題診断）"):
+                st.json(ebay_api.last_debug_info)
+        
         enhanced_results = []
         
         # Add more realistic mock data based on common keywords
@@ -597,7 +603,7 @@ def research_tab():
     💡 **検索のコツ**: 「Nintendo」「iPhone」「Canon」「Sony」「LEGO」などのキーワードを試してください
     💡 **為替レート**: USD→JPY変換は最新レートを自動取得します
     
-    🚀 **リアルデータ対応**: eBay Finding APIを使用して実際の商品データを取得します！
+    🚀 **リアルデータ対応**: eBay Browse/Finding APIを使用して実際の商品データを取得します！
     """)
     
     # Search section
@@ -608,6 +614,29 @@ def research_tab():
         st.write("")
         st.write("")
         search_button = st.button("🔍 検索", type="primary")
+    
+    # API test button
+    col_test1, col_test2 = st.columns([1, 1])
+    with col_test1:
+        if st.button("🔧 API接続テスト", help="eBay APIの接続状況をテストします"):
+            with st.spinner("API接続をテスト中..."):
+                test_result = ebay_api.test_api_connection()
+                
+                if test_result['config_valid']:
+                    st.success("✅ API設定は正しく設定されています")
+                else:
+                    st.error("❌ API設定に問題があります")
+                
+                if test_result['oauth_token']:
+                    st.success("✅ OAuth認証に成功しました")
+                else:
+                    st.warning("⚠️ OAuth認証に失敗しました")
+                
+                if test_result['errors']:
+                    st.error("エラー: " + ', '.join(test_result['errors']))
+                
+                with st.expander("詳細なテスト結果"):
+                    st.json(test_result)
     
     # Initialize session state for research
     if 'research_results' not in st.session_state:
