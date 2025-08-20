@@ -720,8 +720,8 @@ class eBayAPI:
             
             params = {
                 'q': keyword,
-                'limit': str(min(limit, 20)),
-                'sort': 'price',
+                'limit': str(min(limit, 50)),  # Increased from 20 to 50
+                'sort': 'newlyListed',  # Sort by newest first
                 'filter': 'price:[5..10000],priceCurrency:USD,itemLocationCountry:US'
             }
             
@@ -770,8 +770,8 @@ class eBayAPI:
                 'SECURITY-APPNAME': self.config['app_id'],
                 'RESPONSE-DATA-FORMAT': 'JSON',
                 'keywords': keyword,
-                'paginationInput.entriesPerPage': str(min(limit, 20)),
-                'sortOrder': 'BestMatch',
+                'paginationInput.entriesPerPage': str(min(limit, 50)),  # Increased from 20 to 50
+                'sortOrder': 'EndTimeSoonest',  # Sort by newest first
                 'itemFilter(0).name': 'ListingType',
                 'itemFilter(0).value(0)': 'FixedPrice',
                 'itemFilter(1).name': 'MinPrice',
@@ -853,16 +853,23 @@ class eBayAPI:
                     
                     # End time (sold date)
                     end_time = item.get('listingInfo', [{}])[0].get('endTime', [''])[0]
+                    sort_date = None
                     if end_time:
                         # Convert to simple date format
                         from datetime import datetime
                         try:
                             dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
                             sold_date = dt.strftime('%Y-%m-%d')
+                            sort_date = dt
                         except:
                             sold_date = end_time[:10]  # Take first 10 chars as fallback
+                            try:
+                                sort_date = datetime.strptime(sold_date, '%Y-%m-%d')
+                            except:
+                                sort_date = datetime(2025, 1, 1)
                     else:
                         sold_date = '2025-01-01'
+                        sort_date = datetime(2025, 1, 1)
                     
                     # Condition
                     condition = item.get('condition', [{}])[0].get('conditionDisplayName', ['Used'])[0] if item.get('condition') else 'Used'
@@ -872,18 +879,31 @@ class eBayAPI:
                     seller_name = seller_info.get('sellerUserName', ['Unknown'])[0] if seller_info else 'Unknown'
                     feedback_score = seller_info.get('feedbackScore', ['0'])[0] if seller_info else '0'
                     
+                    # Image URL from gallery
+                    image_url = ''
+                    if item.get('galleryURL'):
+                        image_url = item['galleryURL'][0] if isinstance(item['galleryURL'], list) else item['galleryURL']
+                    
+                    # eBay item URL
+                    ebay_url = f"https://www.ebay.com/itm/{item_id}"
+                    if item.get('viewItemURL'):
+                        ebay_url = item['viewItemURL'][0] if isinstance(item['viewItemURL'], list) else item['viewItemURL']
+                    
                     # Skip items with very low prices (likely invalid)
                     if price < 1.0:
                         continue
                     
                     result_item = {
-                        'タイトル': title[:50] + '...' if len(title) > 50 else title,  # Truncate long titles
+                        'タイトル': title,
                         '価格_USD': price,
                         '送料_USD': shipping_price,
                         '売れた日': sold_date,
                         '商品状態': condition,
                         '出品者': f"{seller_name} (評価 {feedback_score})",
-                        'item_id': item_id
+                        'item_id': item_id,
+                        'image_url': image_url,
+                        'ebay_url': ebay_url,
+                        '_sort_date': sort_date
                     }
                     
                     results.append(result_item)
@@ -894,6 +914,13 @@ class eBayAPI:
             
         except Exception as e:
             print(f"Error parsing search results: {e}")
+        
+        # Sort by date (newest first)
+        try:
+            from datetime import datetime
+            results.sort(key=lambda x: x.get('_sort_date', datetime(2025, 1, 1)), reverse=True)
+        except:
+            pass
         
         return results
     
@@ -927,18 +954,42 @@ class eBayAPI:
                     seller_name = seller_info.get('username', 'Unknown')
                     feedback_score = seller_info.get('feedbackScore', '0')
                     
+                    # Image URL
+                    image_url = item.get('image', {}).get('imageUrl', '') if item.get('image') else ''
+                    if not image_url and item.get('thumbnailImages'):
+                        image_url = item['thumbnailImages'][0].get('imageUrl', '')
+                    
+                    # eBay item URL
+                    ebay_url = item.get('itemWebUrl', f"https://www.ebay.com/itm/{item_id}")
+                    
+                    # End time (for sorting)
+                    end_time = item.get('itemEndDate', '2025-01-26T00:00:00.000Z')
+                    
                     # Skip items with very low prices
                     if price < 1.0:
                         continue
                     
+                    # Convert end time to date string for sorting
+                    try:
+                        from datetime import datetime
+                        dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+                        sold_date = dt.strftime('%Y-%m-%d')
+                        sort_date = dt
+                    except:
+                        sold_date = '2025-01-26'
+                        sort_date = datetime(2025, 1, 26)
+                    
                     result_item = {
-                        'タイトル': title[:50] + '...' if len(title) > 50 else title,
+                        'タイトル': title,
                         '価格_USD': price,
                         '送料_USD': shipping_price,
-                        '売れた日': '2025-01-26',  # Browse API doesn't provide sold dates
+                        '売れた日': sold_date,
                         '商品状態': condition,
                         '出品者': f"{seller_name} (評価 {feedback_score})",
-                        'item_id': item_id
+                        'item_id': item_id,
+                        'image_url': image_url,
+                        'ebay_url': ebay_url,
+                        '_sort_date': sort_date
                     }
                     
                     results.append(result_item)
@@ -947,6 +998,12 @@ class eBayAPI:
                     continue
             
         except Exception as e:
+            pass
+        
+        # Sort by date (newest first)
+        try:
+            results.sort(key=lambda x: x.get('_sort_date', datetime(2025, 1, 1)), reverse=True)
+        except:
             pass
         
         return results

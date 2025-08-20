@@ -167,7 +167,7 @@ def ebay_search_real(keyword: str) -> List[Dict]:
     
     try:
         # Try real eBay API search first
-        real_results = ebay_api.search_items(keyword, limit=15)
+        real_results = ebay_api.search_items(keyword, limit=30)  # Increased from 15 to 30
         
         if real_results:
             st.success(f"✅ 実際のeBayデータを{len(real_results)}件取得しました！")
@@ -661,9 +661,24 @@ def research_tab():
                 price_jpy = item["価格_USD"] * st.session_state.exchange_rate
                 shipping_jpy = item["送料_USD"] * st.session_state.exchange_rate
                 
+                # Create formatted title with image and link
+                if item.get('image_url') and item.get('ebay_url'):
+                    # Create HTML for title with image and link
+                    title_html = f"""
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <img src="{item['image_url']}" alt="商品画像" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd;">
+                        <a href="{item['ebay_url']}" target="_blank" style="text-decoration: none; color: #1f77b4; font-weight: 500;">
+                            {item['タイトル'][:60]}{'...' if len(item['タイトル']) > 60 else ''}
+                        </a>
+                    </div>
+                    """
+                else:
+                    # Fallback for items without image/URL
+                    title_html = item["タイトル"][:60] + ('...' if len(item["タイトル"]) > 60 else '')
+                
                 display_data.append({
                     "チェック": False,
-                    "タイトル": item["タイトル"],
+                    "タイトル": title_html,
                     "価格": f"${item['価格_USD']:.0f} (¥{price_jpy:,.0f})",
                     "送料": f"${item['送料_USD']:.0f} (¥{shipping_jpy:,.0f})",
                     "売れた日": item["売れた日"],
@@ -673,7 +688,9 @@ def research_tab():
                     "利益額": 0.0,
                     "利益率": 0.0,
                     "_価格_USD": item["価格_USD"],
-                    "_送料_USD": item["送料_USD"]
+                    "_送料_USD": item["送料_USD"],
+                    "_image_url": item.get("image_url", ""),
+                    "_ebay_url": item.get("ebay_url", "")
                 })
             
             st.session_state.research_results = pd.DataFrame(display_data)
@@ -682,37 +699,118 @@ def research_tab():
     if not st.session_state.research_results.empty:
         st.subheader(f"検索結果 ({len(st.session_state.research_results)}件)")
         
-        # Configure column types for data editor
+        # Create custom HTML table for better display of images and links
+        st.markdown("### 🛍️ 商品一覧（画像・リンク付き）")
+        
+        # Create HTML table with images and links
+        html_table = """
+        <style>
+        .product-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .product-table th, .product-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            vertical-align: middle;
+        }
+        .product-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        .product-img {
+            width: 50px;
+            height: 50px;
+            object-fit: cover;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        .product-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .product-link {
+            text-decoration: none;
+            color: #1f77b4;
+            font-weight: 500;
+        }
+        .product-link:hover {
+            text-decoration: underline;
+        }
+        </style>
+        <table class="product-table">
+            <thead>
+                <tr>
+                    <th>選択</th>
+                    <th>商品</th>
+                    <th>価格</th>
+                    <th>送料</th>
+                    <th>売れた日</th>
+                    <th>状態</th>
+                    <th>出品者</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
+        
+        # Add rows for each product
+        for idx, row in st.session_state.research_results.iterrows():
+            # Create image element
+            img_element = ""
+            if row.get('_image_url'):
+                img_element = f'<img src="{row["_image_url"]}" alt="商品画像" class="product-img">'
+            
+            # Create title with link
+            title_element = row["タイトル"][:60] + ('...' if len(str(row["タイトル"])) > 60 else '')
+            if row.get('_ebay_url'):
+                title_element = f'<a href="{row["_ebay_url"]}" target="_blank" class="product-link">{title_element}</a>'
+            
+            html_table += f"""
+                <tr>
+                    <td><input type="checkbox" id="item_{idx}"></td>
+                    <td>
+                        <div class="product-title">
+                            {img_element}
+                            <div>{title_element}</div>
+                        </div>
+                    </td>
+                    <td>{row["価格"]}</td>
+                    <td>{row["送料"]}</td>
+                    <td>{row["売れた日"]}</td>
+                    <td>{row["商品状態"]}</td>
+                    <td>{row["出品者"]}</td>
+                </tr>
+            """
+        
+        html_table += """
+            </tbody>
+        </table>
+        """
+        
+        # Display HTML table
+        st.markdown(html_table, unsafe_allow_html=True)
+        
+        # Add data editor for profit calculations
+        st.markdown("### 💰 利益計算")
+        
+        # Configure column types for data editor (simplified for calculations)
         column_config = {
             "チェック": st.column_config.CheckboxColumn(
-                "チェック",
+                "選択",
                 help="選択する商品にチェックを入れてください",
                 default=False,
             ),
             "タイトル": st.column_config.TextColumn(
-                "タイトル",
-                help="商品タイトル",
-                max_chars=50,
+                "商品名",
+                help="商品タイトル（短縮版）",
+                width="medium",
             ),
             "価格": st.column_config.TextColumn(
                 "価格",
                 help="販売価格（USD / 円換算）",
-            ),
-            "送料": st.column_config.TextColumn(
-                "送料", 
-                help="送料（USD / 円換算）",
-            ),
-            "売れた日": st.column_config.DateColumn(
-                "売れた日",
-                help="商品が売れた日付",
-            ),
-            "商品状態": st.column_config.TextColumn(
-                "商品状態",
-                help="商品の状態",
-            ),
-            "出品者": st.column_config.TextColumn(
-                "出品者",
-                help="出品者情報（評価数含む）",
             ),
             "仕入れ値入力": st.column_config.NumberColumn(
                 "仕入れ値入力 (円)",
@@ -736,15 +834,26 @@ def research_tab():
             ),
             "_価格_USD": None,  # Hidden columns
             "_送料_USD": None,
+            "_image_url": None,
+            "_ebay_url": None,
+            "送料": None,
+            "売れた日": None,
+            "商品状態": None,
+            "出品者": None,
         }
         
-        # Display editable dataframe
+        # Create simplified dataframe for calculations
+        calc_df = st.session_state.research_results[["チェック", "タイトル", "価格", "仕入れ値入力", "利益額", "利益率", "_価格_USD", "_送料_USD"]].copy()
+        # Shorten titles for the calculation table
+        calc_df["タイトル"] = calc_df["タイトル"].apply(lambda x: str(x)[:30] + ('...' if len(str(x)) > 30 else ''))
+        
+        # Display editable dataframe for calculations
         edited_df = st.data_editor(
-            st.session_state.research_results,
+            calc_df,
             column_config=column_config,
             use_container_width=True,
             num_rows="fixed",
-            disabled=["タイトル", "価格", "送料", "売れた日", "商品状態", "出品者", "利益額", "利益率"],
+            disabled=["タイトル", "価格", "利益額", "利益率"],
             hide_index=True,
             key="research_editor"
         )
