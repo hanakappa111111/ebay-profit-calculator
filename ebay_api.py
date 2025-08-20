@@ -695,6 +695,117 @@ class eBayAPI:
         
         return test_result
     
+    def create_draft_listing(self, item_data: Dict) -> Dict:
+        """Create a draft listing on eBay using Selling API"""
+        try:
+            if not self.access_token:
+                token = self.get_oauth_token()
+                if not token:
+                    return {'success': False, 'error': 'OAuth token required for creating listings'}
+            
+            # eBay Selling API endpoint for creating draft listings
+            selling_api_url = "https://api.ebay.com/sell/inventory/v1/inventory_item"
+            
+            headers = {
+                'Authorization': f'Bearer {self.access_token}',
+                'Content-Type': 'application/json',
+                'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US'
+            }
+            
+            # Create inventory item data
+            inventory_data = {
+                "product": {
+                    "title": item_data.get('title', ''),
+                    "description": f"商品説明: {item_data.get('title', '')}\n\n"
+                                 f"状態: {item_data.get('condition', 'Used')}\n"
+                                 f"参考価格: ${item_data.get('price', 0):.2f}",
+                    "imageUrls": [item_data.get('image_url')] if item_data.get('image_url') else [],
+                    "brand": "Generic"
+                },
+                "condition": self._map_condition_to_ebay(item_data.get('condition', 'Used')),
+                "availability": {
+                    "shipToLocationAvailability": {
+                        "quantity": 1
+                    }
+                }
+            }
+            
+            # Generate unique SKU
+            import time
+            sku = f"import_{int(time.time())}"
+            
+            response = self.session.put(
+                f"{selling_api_url}/{sku}",
+                headers=headers,
+                json=inventory_data,
+                timeout=15
+            )
+            
+            if response.status_code in [200, 201]:
+                return {
+                    'success': True,
+                    'sku': sku,
+                    'message': 'Draft listing created successfully',
+                    'data': response.json() if response.text else {}
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': f'API Error: {response.status_code}',
+                    'details': response.text[:500]
+                }
+                
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f'Exception: {str(e)}'
+            }
+    
+    def _map_condition_to_ebay(self, condition: str) -> str:
+        """Map Japanese condition to eBay condition"""
+        condition_mapping = {
+            '新品': 'NEW',
+            '新品同様': 'NEW_OTHER',
+            '中古 - 非常に良い': 'USED_EXCELLENT',
+            '中古 - 良い': 'USED_VERY_GOOD',
+            '中古 - 可': 'USED_GOOD',
+            '中古': 'USED_GOOD'
+        }
+        
+        return condition_mapping.get(condition, 'USED_GOOD')
+    
+    def get_oauth_user_token(self, auth_code: str) -> Optional[str]:
+        """Get user OAuth token for listing creation (requires user consent)"""
+        try:
+            oauth_url = "https://api.ebay.com/identity/v1/oauth2/token"
+            
+            import base64
+            credentials = f"{self.config['app_id']}:{self.config['cert_id']}"
+            encoded_credentials = base64.b64encode(credentials.encode()).decode()
+            
+            headers = {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Authorization': f'Basic {encoded_credentials}'
+            }
+            
+            data = {
+                'grant_type': 'authorization_code',
+                'code': auth_code,
+                'redirect_uri': 'your_redirect_uri'  # This needs to be configured
+            }
+            
+            response = self.session.post(oauth_url, headers=headers, data=data, timeout=10)
+            
+            if response.status_code == 200:
+                token_data = response.json()
+                self.user_access_token = token_data.get('access_token')
+                return self.user_access_token
+            else:
+                return None
+                
+        except Exception as e:
+            return None
+    
     def search_items(self, keyword: str, limit: int = 20) -> List[Dict]:
         """Search for items using eBay Browse API (newer, OAuth-based)"""
         try:

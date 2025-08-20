@@ -737,53 +737,59 @@ def research_tab():
         # Create a clean display dataframe with clickable links
         display_df = st.session_state.research_results.copy()
         
-        # Create clickable title links for items that have eBay URLs
-        def create_clickable_title(row):
+        # Create clean title display (商品名のみ表示)
+        def create_clean_title(row):
             title = str(row["タイトル"])[:60] + ('...' if len(str(row["タイトル"])) > 60 else '')
-            if row.get('_ebay_url') and row['_ebay_url'] != '':
-                return f"[{title}]({row['_ebay_url']})"
-            else:
-                return title
+            return title
         
-        display_df["商品タイトル"] = display_df.apply(create_clickable_title, axis=1)
+        display_df["商品タイトル"] = display_df.apply(create_clean_title, axis=1)
         
         # Create a clean display version without hidden columns
         clean_df = display_df[["商品タイトル", "価格", "送料", "売れた日", "商品状態", "出品者"]].copy()
         
         # Display the product list as a standard dataframe
-        st.markdown("### 🛍️ 商品一覧")
-        st.dataframe(
-            clean_df,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "商品タイトル": st.column_config.LinkColumn(
-                    "商品タイトル",
-                    help="商品名（クリックでeBayページへ）",
-                    width="large"
-                ),
-                "価格": st.column_config.TextColumn(
-                    "価格",
-                    help="販売価格（USD / 円換算）",
-                ),
-                "送料": st.column_config.TextColumn(
-                    "送料",
-                    help="送料（USD / 円換算）",
-                ),
-                "売れた日": st.column_config.DateColumn(
-                    "売れた日",
-                    help="商品が売れた日付",
-                ),
-                "商品状態": st.column_config.TextColumn(
-                    "商品状態",
-                    help="商品の状態",
-                ),
-                "出品者": st.column_config.TextColumn(
-                    "出品者",
-                    help="出品者情報（評価数含む）",
-                ),
-            }
-        )
+        st.markdown("### 🛍️ 商品一覧（クリックでeBayページへ）")
+        
+        # Create header row
+        col1, col2, col3, col4, col5, col6 = st.columns([3, 1, 1, 1, 1, 2])
+        with col1:
+            st.write("**商品名**")
+        with col2:
+            st.write("**価格**")
+        with col3:
+            st.write("**送料**")
+        with col4:
+            st.write("**売れた日**")
+        with col5:
+            st.write("**状態**")
+        with col6:
+            st.write("**出品者**")
+        
+        st.divider()
+        
+        # Add product rows with clickable links
+        for idx, row in clean_df.iterrows():
+            col1, col2, col3, col4, col5, col6 = st.columns([3, 1, 1, 1, 1, 2])
+            
+            with col1:
+                # Display title as clickable link
+                original_row = st.session_state.research_results.iloc[idx]
+                ebay_url = original_row.get('_ebay_url', '')
+                if ebay_url:
+                    st.markdown(f"🔗 [{row['商品タイトル']}]({ebay_url})")
+                else:
+                    st.write(row['商品タイトル'])
+            
+            with col2:
+                st.write(row['価格'])
+            with col3:
+                st.write(row['送料'])
+            with col4:
+                st.write(row['売れた日'])
+            with col5:
+                st.write(row['商品状態'])
+            with col6:
+                st.write(row['出品者'])
         
         # Add profit calculation section
         st.markdown("### 💰 利益計算・選択")
@@ -887,19 +893,86 @@ def research_tab():
                     st.warning("⚠️ 商品を選択してください")
         
         with col2:
-            if st.button("💾 選択商品を下書き保存", help="選択した商品を下書きとして保存（モック機能）"):
+            if st.button("💾 選択商品を下書き保存", help="選択した商品をeBayの下書きとして保存"):
                 selected_rows = edited_df[edited_df["チェック"] == True]
                 if not selected_rows.empty:
-                    st.success(f"✅ {len(selected_rows)}件の商品を下書きに保存しました")
+                    # eBay出品機能の説明
+                    st.info("""
+                    🔗 **eBay出品機能について**
                     
-                    # Display selected items for debugging
-                    with st.expander("保存された商品一覧"):
+                    実際のeBay出品機能を使用するには、以下の設定が必要です：
+                    
+                    **1. eBay Developer設定**
+                    - eBay Developer Accountで「Sell」権限を有効化
+                    - Production環境での認証設定
+                    - リダイレクトURLの設定
+                    
+                    **2. ユーザー認証**
+                    - eBayアカウントでのOAuth認証
+                    - Selling API使用権限の取得
+                    
+                    **3. 現在の状況**
+                    - APIの基礎設定は完了
+                    - ユーザー認証部分が必要
+                    """)
+                    
+                    # Mock implementation for demonstration
+                    st.markdown("### 📄 模擬下書き保存（デモ版）")
+                    if st.button("📦 デモ下書き作成"):
+                        import time
+                        draft_results = []
+                        
                         for idx, row in selected_rows.iterrows():
-                            st.write(f"**{row['タイトル']}**")
-                            st.write(f"- 価格: {row['価格']}")
-                            st.write(f"- 仕入れ値: ¥{row['仕入れ値入力']:,}")
-                            st.write(f"- 予想利益: ¥{row['利益額']:,.0f} ({row['利益率']:.1f}%)")
-                            st.write("---")
+                            # Mock draft creation
+                            result = {
+                                'success': True,
+                                'sku': f"demo_{int(time.time())}_{idx}",
+                                'message': 'Demo draft created',
+                                'title': row['タイトル'],
+                                'price': row.get('_価格_USD', 0),
+                                'purchase_price': row['仕入れ値入力']
+                            }
+                            draft_results.append(result)
+                        
+                        st.success(f"✅ {len(draft_results)}件の商品を模擬下書きに保存しました")
+                        
+                        with st.expander("保存された商品詳細"):
+                            for result in draft_results:
+                                st.write(f"**{result['title']}**")
+                                st.write(f"- SKU: {result['sku']}")
+                                st.write(f"- 参考価格: ${result['price']:.2f}")
+                                st.write(f"- 仕入れ値: ¥{result['purchase_price']:,}")
+                                st.write("---")
+                        
+                        st.info("""
+                        💡 **実装完了後の機能:**
+                        - 実際のeBay Inventory APIで下書き作成
+                        - My eBay > Sell > Drafts で確認可能
+                        - 価格、説明、カテゴリの編集
+                        - 出品スケジュール設定
+                        """)
+                    
+                    # OAuth認証の説明
+                    st.markdown("### 🔐 実際の連携に必要な手順")
+                    st.markdown("""
+                    **eBayアカウント連携のステップ:**
+                    
+                    1. **eBay Developer Accountで設定**
+                       - Application作成時に「Sell」スコープを有効化
+                       - RuName (Redirect URL) を設定
+                       - Production環境でのApp IDを取得
+                    
+                    2. **OAuth認証フロー**
+                       - ユーザーをeBay認証ページにリダイレクト
+                       - 認証後のコードでアクセストークン取得
+                       - Selling APIの使用権限を確認
+                    
+                    3. **API設定の更新**
+                       - Streamlit Secretsにuser_token追加
+                       - Selling API エンドポイントの設定
+                       - 出品カテゴリとポリシーの設定
+                    """)
+                    
                 else:
                     st.warning("⚠️ 商品を選択してください")
     
