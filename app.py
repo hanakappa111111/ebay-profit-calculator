@@ -13,6 +13,23 @@ from urllib.parse import quote
 from config import SHIPPING_RATES, CURRENCY_CONFIG, APP_CONFIG
 from ebay_api import ebay_api
 
+# Configure eBay API with Streamlit secrets if available
+def configure_ebay_api():
+    """Configure eBay API with Streamlit secrets or environment variables"""
+    try:
+        # Try to use Streamlit secrets first
+        if hasattr(st, 'secrets') and 'EBAY_APP_ID' in st.secrets:
+            ebay_api.config['app_id'] = st.secrets['EBAY_APP_ID']
+            ebay_api.config['dev_id'] = st.secrets['EBAY_DEV_ID']
+            ebay_api.config['cert_id'] = st.secrets['EBAY_CERT_ID']
+            ebay_api.config['environment'] = st.secrets.get('EBAY_ENV', 'production')
+            return True
+    except:
+        pass
+    
+    # Fallback to environment variables (already configured in config.py)
+    return False
+
 # Configure page
 st.set_page_config(
     page_title=APP_CONFIG['title'],
@@ -259,6 +276,9 @@ def calculate_research_profit(selling_price_usd: float, shipping_usd: float,
 def main():
     st.title("💰 eBay転売利益計算ツール")
     st.subheader("日本からeBayへの転売利益を簡単計算！")
+    
+    # Configure eBay API keys
+    configure_ebay_api()
     
     # Create tabs
     tab1, tab2 = st.tabs(["利益計算", "リサーチ"])

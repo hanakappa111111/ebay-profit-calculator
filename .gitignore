@@ -47,4 +47,10 @@ Thumbs.db
 
 # Local configuration files (if any)
 config.local.py
-.env.local 
+.env.local
+
+# Security: Never commit API keys or secrets
+*.key
+*.secret
+secrets.toml
+.secrets/ 

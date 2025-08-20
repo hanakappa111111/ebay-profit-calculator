@@ -84,13 +84,23 @@ ebayseller/
 
 ## ⚙️ Configuration
 
-### eBay API Setup (Optional)
+### eBay API Setup (Required for Research Feature)
 
-For more accurate data, you can configure eBay API credentials:
+For full functionality including the Research tab, configure eBay API credentials:
 
 1. **Get API credentials** from [eBay Developer Program](https://developer.ebay.com/)
 
-2. **Set environment variables**:
+2. **For Streamlit Cloud (Recommended)**:
+   - Go to your app settings in Streamlit Cloud
+   - Add secrets in the secrets management section:
+   ```toml
+   EBAY_APP_ID = "your_app_id"
+   EBAY_DEV_ID = "your_dev_id"
+   EBAY_CERT_ID = "your_cert_id"
+   EBAY_ENV = "production"
+   ```
+
+3. **For local development**, set environment variables:
    ```bash
    export EBAY_APP_ID="your_app_id"
    export EBAY_DEV_ID="your_dev_id" 
@@ -98,7 +108,9 @@ For more accurate data, you can configure eBay API credentials:
    export EBAY_ENV="production"  # or "sandbox"
    ```
 
-3. **Without API credentials**, the tool uses web scraping as a fallback method.
+4. **⚠️ SECURITY WARNING**: Never commit API credentials to version control! Always use environment variables or Streamlit secrets.
+
+5. **Without API credentials**, basic profit calculation works but research features are limited.
 
 ### Currency Rate Configuration
 
