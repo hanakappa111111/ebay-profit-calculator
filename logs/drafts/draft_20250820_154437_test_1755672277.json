@@ -1,0 +1,17 @@
+{
+  "item_id": "test_1755672277",
+  "title": "Test Nintendo Switch Console",
+  "price_usd": 250.0,
+  "shipping_usd": 20.0,
+  "condition": "中古 - 良い",
+  "purchase_price_jpy": 35000,
+  "profit_jpy": 2500.0,
+  "profit_margin": 7.1,
+  "seller": "test_seller (評価 100)",
+  "sold_date": "2024-01-01",
+  "category": null,
+  "image_url": null,
+  "ebay_url": null,
+  "notes": null,
+  "created_at": "2025-08-20T15:44:37.118408"
+}

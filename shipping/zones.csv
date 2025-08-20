@@ -1,0 +1,60 @@
+country_code,country_name_en,country_name_jp,zone
+US,United States,アメリカ合衆国,1
+CA,Canada,カナダ,1
+MX,Mexico,メキシコ,1
+AU,Australia,オーストラリア,2
+NZ,New Zealand,ニュージーランド,2
+SG,Singapore,シンガポール,2
+HK,Hong Kong,香港,2
+TW,Taiwan,台湾,2
+KR,South Korea,韓国,2
+TH,Thailand,タイ,2
+MY,Malaysia,マレーシア,2
+PH,Philippines,フィリピン,2
+ID,Indonesia,インドネシア,2
+VN,Vietnam,ベトナム,2
+IN,India,インド,2
+GB,United Kingdom,イギリス,3
+DE,Germany,ドイツ,3
+FR,France,フランス,3
+IT,Italy,イタリア,3
+ES,Spain,スペイン,3
+NL,Netherlands,オランダ,3
+BE,Belgium,ベルギー,3
+CH,Switzerland,スイス,3
+AT,Austria,オーストリア,3
+SE,Sweden,スウェーデン,3
+NO,Norway,ノルウェー,3
+DK,Denmark,デンマーク,3
+FI,Finland,フィンランド,3
+PL,Poland,ポーランド,3
+CZ,Czech Republic,チェコ,3
+HU,Hungary,ハンガリー,3
+RO,Romania,ルーマニア,3
+BG,Bulgaria,ブルガリア,3
+GR,Greece,ギリシャ,3
+PT,Portugal,ポルトガル,3
+IE,Ireland,アイルランド,3
+CN,China,中国,4
+RU,Russia,ロシア,4
+BR,Brazil,ブラジル,4
+AR,Argentina,アルゼンチン,4
+CL,Chile,チリ,4
+CO,Colombia,コロンビア,4
+PE,Peru,ペルー,4
+UY,Uruguay,ウルグアイ,4
+EC,Ecuador,エクアドル,4
+BO,Bolivia,ボリビア,4
+PY,Paraguay,パラグアイ,4
+VE,Venezuela,ベネズエラ,4
+ZA,South Africa,南アフリカ,4
+EG,Egypt,エジプト,4
+MA,Morocco,モロッコ,4
+TN,Tunisia,チュニジア,4
+KE,Kenya,ケニア,4
+NG,Nigeria,ナイジェリア,4
+GH,Ghana,ガーナ,4
+ET,Ethiopia,エチオピア,4
+TZ,Tanzania,タンザニア,4
+UG,Uganda,ウガンダ,4
+ZW,Zimbabwe,ジンバブエ,4
