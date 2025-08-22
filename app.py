@@ -21,74 +21,90 @@ MOCK_SOLD_ITEMS = [
     {
         "title": "Nintendo Switch Console - Gray (Japanese Version)",
         "price_usd": 220.00,
-        "sold_date": "2024-01-15",
+        "sold_date": "2024-02-15",
         "category": "Video Games & Consoles",
         "condition": "Used - Very Good",
         "shipping_usd": 25.00,
-        "item_id": "item_001"
+        "item_id": "item_001",
+        "image_url": "https://i.ebayimg.com/images/g/HUwAAOSwFxxjK5SV/s-l400.webp",
+        "ebay_url": "https://www.ebay.com/itm/123456789"
     },
     {
         "title": "Apple iPhone 13 Pro 256GB Gold Unlocked",
         "price_usd": 550.00,
-        "sold_date": "2024-01-18",
+        "sold_date": "2024-02-12",
         "category": "Cell Phones & Smartphones", 
         "condition": "Used - Excellent",
         "shipping_usd": 30.00,
-        "item_id": "item_002"
+        "item_id": "item_002",
+        "image_url": "https://i.ebayimg.com/images/g/zBwAAOSwc8JlRo1f/s-l400.webp",
+        "ebay_url": "https://www.ebay.com/itm/234567890"
     },
     {
         "title": "Sony WH-1000XM5 Wireless Noise Canceling Headphones",
         "price_usd": 300.00,
-        "sold_date": "2024-01-20",
+        "sold_date": "2024-02-10",
         "category": "Consumer Electronics",
         "condition": "New with Tags",
         "shipping_usd": 20.00,
-        "item_id": "item_003"
+        "item_id": "item_003",
+        "image_url": "https://i.ebayimg.com/images/g/O0QAAOSwEo9jVGC8/s-l400.webp",
+        "ebay_url": "https://www.ebay.com/itm/345678901"
     },
     {
         "title": "LEGO Star Wars Millennium Falcon 75257",
         "price_usd": 150.00,
-        "sold_date": "2024-01-22",
+        "sold_date": "2024-02-08",
         "category": "Toys & Hobbies",
         "condition": "Used - Good",
         "shipping_usd": 35.00,
-        "item_id": "item_004"
+        "item_id": "item_004",
+        "image_url": "https://i.ebayimg.com/images/g/zL8AAOSwn8Jiv-y-/s-l400.webp",
+        "ebay_url": "https://www.ebay.com/itm/456789012"
     },
     {
         "title": "Canon EOS R6 Mark II Camera Body Only",
         "price_usd": 1250.00,
-        "sold_date": "2024-01-25",
+        "sold_date": "2024-02-05",
         "category": "Cameras & Photo",
         "condition": "New",
         "shipping_usd": 45.00,
-        "item_id": "item_005"
+        "item_id": "item_005",
+        "image_url": "https://i.ebayimg.com/images/g/n8AAAOSwNrdjK5Nm/s-l400.webp",
+        "ebay_url": "https://www.ebay.com/itm/567890123"
     },
     {
         "title": "Pokemon Card Collection - Charizard Base Set Japanese",
         "price_usd": 380.00,
-        "sold_date": "2024-01-28",
+        "sold_date": "2024-02-03",
         "category": "Toys & Hobbies",
         "condition": "Used - Very Good",
         "shipping_usd": 15.00,
-        "item_id": "item_006"
+        "item_id": "item_006",
+        "image_url": "https://i.ebayimg.com/images/g/HQkAAOSwV~dk3rHu/s-l400.webp",
+        "ebay_url": "https://www.ebay.com/itm/678901234"
     },
     {
         "title": "Vintage Seiko Automatic Watch - Made in Japan",
         "price_usd": 450.00,
-        "sold_date": "2024-01-30",
+        "sold_date": "2024-02-01",
         "category": "Jewelry & Watches",
         "condition": "Used - Good",
         "shipping_usd": 20.00,
-        "item_id": "item_007"
+        "item_id": "item_007",
+        "image_url": "https://i.ebayimg.com/images/g/JqQAAOSwR3hkp7DI/s-l400.webp",
+        "ebay_url": "https://www.ebay.com/itm/789012345"
     },
     {
         "title": "Yamaha Electric Guitar - Pacifica Series",
         "price_usd": 280.00,
-        "sold_date": "2024-02-01",
+        "sold_date": "2024-01-30",
         "category": "Musical Instruments & Gear",
         "condition": "Used - Very Good",
         "shipping_usd": 50.00,
-        "item_id": "item_008"
+        "item_id": "item_008",
+        "image_url": "https://i.ebayimg.com/images/g/sEsAAOSwGrVlE9Tm/s-l400.webp",
+        "ebay_url": "https://www.ebay.com/itm/890123456"
     }
 ]
 
@@ -286,6 +302,12 @@ def search_mock_items(keyword: str) -> List[Dict]:
             keyword_lower in item["category"].lower()):
             filtered_items.append(item)
     
+    # Sort by sold_date (newest first)
+    try:
+        filtered_items = sorted(filtered_items, key=lambda x: x.get('sold_date', ''), reverse=True)
+    except:
+        pass  # If sorting fails, keep original order
+    
     return filtered_items
 
 def calculate_max_purchase_price(selling_price_jpy: float, target_margin: float = 0.20) -> float:
@@ -372,6 +394,12 @@ def ebay_search_real(keyword: str) -> List[Dict]:
         real_results = ebay_api.search_items(keyword, limit=30)  # Increased from 15 to 30
         
         if real_results:
+            # Sort by date (newest first) if date field exists
+            try:
+                real_results = sorted(real_results, key=lambda x: x.get('売れた日', ''), reverse=True)
+            except:
+                pass  # If sorting fails, keep original order
+            
             st.success(f"✅ 実際のeBayデータを{len(real_results)}件取得しました！")
             return real_results
         
@@ -872,24 +900,14 @@ def research_tab():
                 price_jpy = item["価格_USD"] * st.session_state.exchange_rate
                 shipping_jpy = item["送料_USD"] * st.session_state.exchange_rate
                 
-                # Create formatted title with image and link
-                if item.get('image_url') and item.get('ebay_url'):
-                    # Create HTML for title with image and link
-                    title_html = f"""
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <img src="{item['image_url']}" alt="商品画像" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd;">
-                        <a href="{item['ebay_url']}" target="_blank" style="text-decoration: none; color: #1f77b4; font-weight: 500;">
-                            {item['タイトル'][:60]}{'...' if len(item['タイトル']) > 60 else ''}
-                        </a>
-                    </div>
-                    """
-                else:
-                    # Fallback for items without image/URL
-                    title_html = item["タイトル"][:60] + ('...' if len(item["タイトル"]) > 60 else '')
+                # Clean title without HTML - use simple text
+                clean_title = item.get('タイトル', 'タイトル不明')
+                if len(clean_title) > 60:
+                    clean_title = clean_title[:60] + '...'
                 
                 display_data.append({
                     "チェック": False,
-                    "タイトル": title_html,
+                    "タイトル": clean_title,
                     "価格": f"${item['価格_USD']:.0f} (¥{price_jpy:,.0f})",
                     "送料": f"${item['送料_USD']:.0f} (¥{shipping_jpy:,.0f})",
                     "売れた日": item["売れた日"],
@@ -1244,7 +1262,7 @@ def research_and_draft_tab():
             
             display_data.append({
                 "選択": False,
-                "商品タイトル": item["title"],
+                "商品タイトル": item["title"][:80] + ('...' if len(item["title"]) > 80 else ''),
                 "価格 (USD)": f"${item['price_usd']:.2f}",
                 "価格 (JPY)": f"¥{price_jpy:,.0f}",
                 "送料 (USD)": f"${item['shipping_usd']:.2f}",
@@ -1253,11 +1271,42 @@ def research_and_draft_tab():
                 "カテゴリ": item["category"],
                 "状態": item["condition"],
                 "最大仕入値 (20%利益)": f"¥{max_purchase:,.0f}",
-                "_item_index": i
+                "_item_index": i,
+                "_image_url": item.get("image_url", ""),
+                "_ebay_url": item.get("ebay_url", "")
             })
         
         # Display as data editor for selection
         df = pd.DataFrame(display_data)
+        
+        # Show product images and details in an expandable format
+        st.markdown("### 🖼️ 商品画像とリンク")
+        for i, item in enumerate(st.session_state.search_results):
+            with st.expander(f"📦 {item['title'][:50]}{'...' if len(item['title']) > 50 else ''}"):
+                col1, col2 = st.columns([1, 2])
+                
+                with col1:
+                    # Display product image if available
+                    if item.get("image_url"):
+                        st.image(item["image_url"], width=150, caption="商品画像")
+                    else:
+                        st.info("画像なし")
+                
+                with col2:
+                    # Product details
+                    st.write(f"**商品名**: {item['title']}")
+                    st.write(f"**価格**: ${item['price_usd']:.2f} (¥{item['price_usd'] * exchange_rate:,.0f})")
+                    st.write(f"**状態**: {item['condition']}")
+                    st.write(f"**カテゴリ**: {item['category']}")
+                    
+                    # eBay link
+                    if item.get("ebay_url"):
+                        st.markdown(f"[🔗 eBayページを開く]({item['ebay_url']})")
+                    else:
+                        st.info("eBayリンクなし")
+        
+        st.markdown("---")
+        st.markdown("### 📊 商品選択テーブル")
         
         edited_df = st.data_editor(
             df,
@@ -1275,7 +1324,10 @@ def research_and_draft_tab():
                 "最大仕入値 (20%利益)": st.column_config.TextColumn(
                     "最大仕入値 (20%利益)",
                     help="20%の利益率を確保するための最大仕入れ価格"
-                )
+                ),
+                "_item_index": None,  # Hide internal columns
+                "_image_url": None,
+                "_ebay_url": None
             }
         )
         
