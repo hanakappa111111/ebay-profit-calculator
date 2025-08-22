@@ -516,18 +516,14 @@ def unified_search_tab():
     """Unified tab for profit calculation and product search"""
     st.header("💰 利益計算・商品検索")
     
-    # Create sub-sections
-    section = st.radio(
-        "機能を選択してください:",
-        ["📊 簡易利益計算", "🔍 商品検索・分析"],
-        horizontal=True,
-        key="search_tab_section"
-    )
+    # Product search and analysis section (top)
+    product_search_and_analysis()
     
-    if section == "📊 簡易利益計算":
-        simple_profit_calculator()
-    else:
-        product_search_and_analysis()
+    # Add separator
+    st.markdown("---")
+    
+    # Simple profit calculator section (bottom)
+    simple_profit_calculator()
 
 def simple_profit_calculator():
     """Simple profit calculator section"""
