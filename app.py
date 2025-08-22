@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 import json
 import re
+import os
 from typing import Dict, Optional, Tuple, List
 from datetime import datetime
 import io
@@ -416,6 +417,15 @@ def ebay_search_real(keyword: str) -> List[Dict]:
         # Add more realistic mock data based on common keywords
         keyword_lower = keyword.lower()
         
+        # Use MOCK_SEARCH_DATA and sort by date
+        enhanced_results = MOCK_SEARCH_DATA.copy()
+        
+        # Sort by 売れた日 (newest first)
+        try:
+            enhanced_results = sorted(enhanced_results, key=lambda x: x.get('売れた日', ''), reverse=True)
+        except:
+            pass  # If sorting fails, keep original order
+        
         if 'nintendo' in keyword_lower or 'switch' in keyword_lower:
             enhanced_results.extend([
                 {"タイトル": "Nintendo Switch OLED モデル ホワイト", "価格_USD": 280, "送料_USD": 25, "売れた日": "2025-01-26", "商品状態": "新品", "出品者": "game_seller (評価 2100)", "item_id": "nintendo1", "image_url": "", "ebay_url": "https://www.ebay.com/sch/i.html?_nkw=Nintendo+Switch+OLED"},
@@ -493,20 +503,346 @@ def main():
     # Configure eBay API keys
     configure_ebay_api()
     
-    # Create tabs
-    tab1, tab2, tab3, tab4 = st.tabs(["利益計算", "リサーチ", "Research & Draft", "My Drafts"])
+    # Create 2 main tabs
+    tab1, tab2 = st.tabs(["💰 利益計算・商品検索", "📋 下書き管理"])
     
     with tab1:
-        profit_calculator_tab()
+        unified_search_tab()
     
     with tab2:
-        research_tab()
+        unified_drafts_tab()
+
+def unified_search_tab():
+    """Unified tab for profit calculation and product search"""
+    st.header("💰 利益計算・商品検索")
     
-    with tab3:
-        research_and_draft_tab()
+    # Create sub-sections
+    section = st.radio(
+        "機能を選択してください:",
+        ["📊 簡易利益計算", "🔍 商品検索・分析"],
+        horizontal=True,
+        key="search_tab_section"
+    )
     
-    with tab4:
-        my_drafts_tab()
+    if section == "📊 簡易利益計算":
+        simple_profit_calculator()
+    else:
+        product_search_and_analysis()
+
+def simple_profit_calculator():
+    """Simple profit calculator section"""
+    st.subheader("📊 簡易利益計算")
+    st.markdown("商品の利益を素早く計算できます")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        selling_price_usd = st.number_input(
+            "販売価格 (USD)", 
+            min_value=0.0, 
+            step=1.0, 
+            value=100.0,
+            key="simple_selling_price"
+        )
+        
+        purchase_price_jpy = st.number_input(
+            "仕入れ価格 (JPY)", 
+            min_value=0.0, 
+            step=100.0,
+            value=8000.0,
+            key="simple_purchase_price"
+        )
+        
+        shipping_cost_jpy = st.number_input(
+            "送料 (JPY)", 
+            min_value=0.0, 
+            step=100.0, 
+            value=1500.0,
+            key="simple_shipping"
+        )
+    
+    with col2:
+        # Get current exchange rate
+        exchange_rate = get_usd_to_jpy_rate()
+        st.metric("現在の為替レート", f"1 USD = {exchange_rate:.2f} JPY")
+        
+        # Calculate profit
+        selling_price_jpy = selling_price_usd * exchange_rate
+        ebay_fee_rate = 0.13  # 13% eBay fee
+        ebay_fee_jpy = selling_price_jpy * ebay_fee_rate
+        
+        total_cost = purchase_price_jpy + shipping_cost_jpy + ebay_fee_jpy
+        profit_jpy = selling_price_jpy - total_cost
+        profit_margin = (profit_jpy / selling_price_jpy) * 100 if selling_price_jpy > 0 else 0
+        
+        # Display results
+        st.metric("販売価格 (JPY)", f"¥{selling_price_jpy:,.0f}")
+        st.metric("eBay手数料 (13%)", f"¥{ebay_fee_jpy:,.0f}")
+        st.metric("利益額", f"¥{profit_jpy:,.0f}", delta=f"{profit_margin:.1f}%")
+
+def product_search_and_analysis():
+    """Product search and analysis section"""
+    st.subheader("🔍 商品検索・分析")
+    st.markdown("eBayで商品を検索し、利益分析・下書き保存ができます")
+    
+    # Search section
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        keyword = st.text_input(
+            "商品検索キーワード",
+            placeholder="例: Nintendo, iPhone, Camera",
+            help="商品名、カテゴリなどで検索できます",
+            key="unified_search_keyword"
+        )
+    
+    with col2:
+        search_btn = st.button(
+            "🔍 検索", 
+            type="primary", 
+            key="unified_search_btn"
+        )
+    
+    # Perform search
+    if search_btn and keyword.strip():
+        with st.spinner("商品を検索中..."):
+            # Try real eBay API first, fallback to enhanced mock data
+            search_results = ebay_search_real(keyword)
+            
+            if search_results:
+                st.session_state.unified_search_results = search_results
+                st.session_state.unified_search_keyword = keyword
+                st.success(f"✅ {len(search_results)}件の商品を取得しました")
+            else:
+                st.error("検索結果が見つかりませんでした")
+    
+    # Display search results
+    if hasattr(st.session_state, 'unified_search_results') and st.session_state.unified_search_results:
+        display_search_results_with_analysis()
+
+def display_search_results_with_analysis():
+    """Display search results with profit analysis and save functionality"""
+    st.markdown("---")
+    st.subheader(f"🛍️ 検索結果: '{st.session_state.unified_search_keyword}' ({len(st.session_state.unified_search_results)}件)")
+    
+    # Exchange rate info
+    exchange_rate = get_usd_to_jpy_rate()
+    st.info(f"💱 現在の為替レート: 1 USD = {exchange_rate:.2f} JPY")
+    
+    # Prepare data for analysis
+    analysis_data = []
+    for i, item in enumerate(st.session_state.unified_search_results):
+        price_jpy = item.get("価格_USD", 0) * exchange_rate
+        shipping_jpy = item.get("送料_USD", 0) * exchange_rate
+        
+        analysis_data.append({
+            "選択": False,
+            "商品名": item.get("タイトル", "")[:60] + ('...' if len(item.get("タイトル", "")) > 60 else ''),
+            "価格(USD)": f"${item.get('価格_USD', 0):.0f}",
+            "価格(JPY)": f"¥{price_jpy:,.0f}",
+            "送料(USD)": f"${item.get('送料_USD', 0):.0f}",
+            "送料(JPY)": f"¥{shipping_jpy:,.0f}",
+            "売れた日": item.get("売れた日", ""),
+            "状態": item.get("商品状態", ""),
+            "仕入れ値(JPY)": 0,
+            "利益額": "¥0",
+            "利益率": "0%",
+            "_index": i,
+            "_price_usd": item.get("価格_USD", 0),
+            "_shipping_usd": item.get("送料_USD", 0)
+        })
+    
+    # Display interactive table
+    df = pd.DataFrame(analysis_data)
+    
+    edited_df = st.data_editor(
+        df,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "選択": st.column_config.CheckboxColumn(
+                "選択",
+                help="下書きに保存したい商品をチェックしてください"
+            ),
+            "商品名": st.column_config.TextColumn("商品名", width="large"),
+            "仕入れ値(JPY)": st.column_config.NumberColumn(
+                "仕入れ値(JPY)",
+                help="想定仕入れ価格を入力してください",
+                min_value=0,
+                step=100,
+                format="¥%.0f"
+            ),
+            "利益額": st.column_config.TextColumn("利益額"),
+            "利益率": st.column_config.TextColumn("利益率"),
+            "_index": None,
+            "_price_usd": None,
+            "_shipping_usd": None
+        },
+        key="unified_analysis_editor"
+    )
+    
+    # Calculate profits dynamically
+    for idx, row in edited_df.iterrows():
+        if row["仕入れ値(JPY)"] > 0:
+            purchase_price = row["仕入れ値(JPY)"]
+            selling_price_jpy = row["_price_usd"] * exchange_rate
+            shipping_jpy = row["_shipping_usd"] * exchange_rate
+            
+            profit, margin = calculate_research_profit(selling_price_jpy, purchase_price, shipping_jpy)
+            
+            edited_df.at[idx, "利益額"] = f"¥{profit:,.0f}"
+            edited_df.at[idx, "利益率"] = f"{margin:.1f}%"
+    
+    # Save to drafts functionality
+    selected_count = len(edited_df[edited_df["選択"] == True])
+    
+    col1, col2 = st.columns([1, 3])
+    
+    with col1:
+        st.metric("選択中", f"{selected_count}件")
+    
+    with col2:
+        if st.button(
+            f"📋 選択商品を下書きに保存 ({selected_count}件)", 
+            disabled=selected_count == 0,
+            key="save_to_drafts_btn"
+        ):
+            # Get selected items with analysis data
+            selected_indices = edited_df[edited_df["選択"] == True]["_index"].tolist()
+            selected_items = []
+            
+            for idx in selected_indices:
+                original_item = st.session_state.unified_search_results[idx]
+                analysis_row = edited_df[edited_df["_index"] == idx].iloc[0]
+                
+                selected_items.append({
+                    "title": original_item.get("タイトル", ""),
+                    "price_usd": original_item.get("価格_USD", 0),
+                    "shipping_usd": original_item.get("送料_USD", 0),
+                    "sold_date": original_item.get("売れた日", ""),
+                    "condition": original_item.get("商品状態", ""),
+                    "category": original_item.get("カテゴリ", "未分類"),
+                    "purchase_price_jpy": analysis_row["仕入れ値(JPY)"],
+                    "profit_amount": analysis_row["利益額"],
+                    "profit_margin": analysis_row["利益率"],
+                    "image_url": original_item.get("image_url", ""),
+                    "ebay_url": original_item.get("ebay_url", "")
+                })
+            
+            # Save to CSV
+            if selected_items:
+                filepath = save_drafts_to_csv(selected_items, exchange_rate)
+                if filepath:
+                    st.success(f"✅ {len(selected_items)}件の商品を下書きに保存しました！\n📁 {filepath}")
+                else:
+                    st.error("❌ 下書きの保存に失敗しました")
+
+def unified_drafts_tab():
+    """Unified tab for draft management"""
+    st.header("📋 下書き管理")
+    st.markdown("保存した商品の下書きを管理できます")
+    
+    # Load all drafts
+    drafts_df = load_all_drafts()
+    
+    if drafts_df.empty:
+        st.info("📭 保存された下書きがありません。「利益計算・商品検索」タブで商品を検索して下書きに保存してください。")
+        return
+    
+    # Statistics
+    st.subheader("📊 統計情報")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("総下書き数", f"{len(drafts_df)}件")
+    
+    with col2:
+        if '価格(JPY)' in drafts_df.columns:
+            avg_price = drafts_df['価格(JPY)'].str.replace('[¥,]', '', regex=True).astype(float).mean()
+            st.metric("平均価格", f"¥{avg_price:,.0f}")
+    
+    with col3:
+        if '利益率' in drafts_df.columns:
+            avg_margin = drafts_df['利益率'].str.replace('%', '', regex=True).astype(float).mean()
+            st.metric("平均利益率", f"{avg_margin:.1f}%")
+    
+    with col4:
+        file_count = len([f for f in os.listdir('drafts') if f.endswith('.csv')]) if os.path.exists('drafts') else 0
+        st.metric("保存ファイル数", f"{file_count}個")
+    
+    # Filters
+    st.subheader("🔍 フィルター")
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if '商品カテゴリ' in drafts_df.columns:
+            categories = ['全て'] + list(drafts_df['商品カテゴリ'].unique())
+            selected_category = st.selectbox("カテゴリ", categories, key="drafts_category_filter_unified")
+    
+    with col2:
+        if '状態' in drafts_df.columns:
+            conditions = ['全て'] + list(drafts_df['状態'].unique())
+            selected_condition = st.selectbox("商品状態", conditions, key="drafts_condition_filter_unified")
+    
+    with col3:
+        if '利益率' in drafts_df.columns:
+            margin_filter = st.slider(
+                "最低利益率 (%)", 
+                0, 100, 0, 
+                key="drafts_margin_filter_unified"
+            )
+    
+    # Apply filters
+    filtered_df = drafts_df.copy()
+    
+    if 'selected_category' in locals() and selected_category != '全て':
+        filtered_df = filtered_df[filtered_df['商品カテゴリ'] == selected_category]
+    
+    if 'selected_condition' in locals() and selected_condition != '全て':
+        filtered_df = filtered_df[filtered_df['状態'] == selected_condition]
+    
+    if 'margin_filter' in locals() and margin_filter > 0:
+        margin_values = filtered_df['利益率'].str.replace('%', '', regex=True).astype(float)
+        filtered_df = filtered_df[margin_values >= margin_filter]
+    
+    # Display filtered results
+    st.subheader(f"📦 下書き一覧 ({len(filtered_df)}件)")
+    
+    if not filtered_df.empty:
+        st.dataframe(
+            filtered_df,
+            use_container_width=True,
+            hide_index=True
+        )
+        
+        # Export functionality
+        col1, col2 = st.columns([1, 3])
+        
+        with col1:
+            if st.button("📄 CSVエクスポート", key="export_drafts_unified"):
+                csv_data = filtered_df.to_csv(index=False, encoding='utf-8')
+                st.download_button(
+                    label="📥 ダウンロード",
+                    data=csv_data,
+                    file_name=f"ebay_drafts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv",
+                    key="download_drafts_unified"
+                )
+        
+        with col2:
+            if st.button("🗑️ 古いファイルを削除", key="cleanup_drafts_unified"):
+                # Keep only latest 5 files
+                if os.path.exists('drafts'):
+                    files = [f for f in os.listdir('drafts') if f.endswith('.csv')]
+                    if len(files) > 5:
+                        files.sort(key=lambda x: os.path.getctime(os.path.join('drafts', x)), reverse=True)
+                        for old_file in files[5:]:
+                            os.remove(os.path.join('drafts', old_file))
+                        st.success(f"🗑️ {len(files) - 5}個の古いファイルを削除しました")
+                    else:
+                        st.info("削除する古いファイルはありません")
+    else:
+        st.info("フィルター条件に一致する下書きがありません")
 
 def profit_calculator_tab():
     """Original profit calculator functionality"""
